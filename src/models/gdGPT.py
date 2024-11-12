@@ -26,16 +26,19 @@ class GDAttention(nn.Module):
     def forward(self, e, p):
         B, S, _ = e.size()
 
-        e = torch.cat([e, torch.zeros(B, 1, self.d_embed, device=e.device)], dim=1) # We could instead slice the p tensor, but this allows us to keep the default causal attention mask
-        
-        q = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
-        k = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
-        v = e.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
+        Q = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2) # Use N+1 positional embeddings for query
+        K = p[:, :-1, :].repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2) # Only use first N positional embeddings for key
+        V = e.repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
 
-        y = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True, attn_mask=None, dropout_p=self.dropout if self.training else 0)
+        # This mask allows for causal attention while incorporating the N+1th query
+        mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1).view(1, S, S)
+        mask = torch.cat([mask, torch.ones(1, 1, S, device=e.device)], dim=1)
+        mask = mask.bool()
+        
+        y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
         y = y.transpose(1, 2).contiguous().view(B, S + 1, self.d_embed * self.n_head)
         
-        y = y[:, 1:, :] # Use the outputs for N+1th token, rather than Nth
+        y = y[:, 1:, :] # Use the outputs associated with the N+1th token, rather than Nth
         y = self.W_o(y)
         y = self.resid_dropout(y)
         
