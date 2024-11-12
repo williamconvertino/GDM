@@ -44,6 +44,7 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
   os.makedirs(model_dir, exist_ok=True)
   
   # Training Loop
+  print(f"Training {model.name} [Device: {device}]")
   for epoch in range(starting_epoch, num_epochs):
     
     start_time = time.time()
