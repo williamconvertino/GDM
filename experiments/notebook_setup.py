@@ -9,7 +9,7 @@ if path not in sys.path:
   
 # Install the requirements
 try:
-  subprocess.check_call(["pip", "install", "-r", "../requirements.txt", "--quiet", "pip==21.0.1"]) # Downgrade pip version to suppress warnings
+  subprocess.check_call(["pip", "install", "-r", "../requirements.txt", "--quiet"])
   print("Requirements installed")
 except:
   print("Failed to install requirements")
