@@ -7,32 +7,32 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-class CausalAttention(nn.Module):
+class GDAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
         
         self.n_head = config.n_head
         self.d_embed = config.d_embed
-        self.d_attn = config.d_attn
         self.dropout = config.dropout
         
-        # We don't use d_embed // n_head because we want to keep square matrices (to be consistent with GD transformer theory)
-        self.W_q = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
-        self.W_k = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
-        self.W_v = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
-        self.W_o = nn.Linear(self.d_attn * self.n_head, self.d_embed, bias=config.bias)
+        # Only need W_o matrix for output projection
+        self.W_o = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
         
         # Dropout
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
     
-    def forward(self, x):
-        B, S, _ = x.size()
+    def forward(self, e, p):
+        B, S, _ = e.size()
         
-        q = self.W_q(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-        k = self.W_k(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-        v = self.W_v(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+        # q = self.W_q(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+        # k = self.W_k(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+        # v = self.W_v(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+
+        q = p[:, 1:, :].view(B, S + 1, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
+        k = p[:, :-1, :].view(B, S, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
+        v = e.view(B, S, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
 
         y = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True, attn_mask=None, dropout_p=self.dropout if self.training else 0)
         y = y.transpose(1, 2).contiguous().view(B, S, self.d_attn * self.n_head)
@@ -47,13 +47,11 @@ class Block(nn.Module):
     def __init__(self, config):
         super().__init__()
         
-        self.use_attn = config.use_attn
         self.use_ff = config.use_ff
-        
-        if self.use_attn:
-          
-          self.ln_attn = nn.LayerNorm(config.d_embed, bias=config.bias)
-          self.attn = CausalAttention(config)
+      
+        self.ln_p = nn.LayerNorm(config.d_embed, bias=config.bias)
+        self.ln_e = nn.LayerNorm(config.d_embed, bias=config.bias)
+        self.attn = GDAttention(config)
         
         if self.use_ff:
             self.ln_mlp = nn.LayerNorm(config.d_embed, bias=config.bias)
@@ -64,9 +62,10 @@ class Block(nn.Module):
                 nn.Dropout(config.dropout)
             )
 
-    def forward(self, x):
-        if self.use_attn:
-            x = x + self.attn(self.ln_attn(x))
+    def forward(self, e, p):
+        e = self.ln_e(e)
+        p = self.ln_p(p)
+        x = self.attn(e, p)
         if self.use_ff:
             x = x + self.mlp(self.ln_mlp(x))
         return x
@@ -81,8 +80,9 @@ class GPT(nn.Module):
 
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
-        self.wpe = nn.Embedding(config.context_size, config.d_embed)
-        self.drop = nn.Dropout(config.dropout)
+        self.wpe = nn.Embedding(config.context_size + 1, config.d_embed) # Need a positional vector for the N+1th token
+        self.drop_p = nn.Dropout(config.dropout)
+        self.drop_e = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.d_embed, bias=config.bias)
         
@@ -118,15 +118,16 @@ class GPT(nn.Module):
         B, S = idx.size()
         assert S <= self.config.context_size, f"Cannot forward sequence of length {S}, context size is only {self.context_size}"
         
-        pos = torch.arange(0, S, dtype=torch.long, device=device)
+        pos = torch.arange(0, S + 1, dtype=torch.long, device=device)
 
-        tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, s, d_embed)
-        pos_emb = self.transformer.wpe(pos) # position embeddings of shape (s, d_embed)
+        e = self.transformer.wte(idx) # token embeddings of shape (B, S, d_embed)
+        p = self.transformer.wpe(pos) # position embeddings of shape (S + 1, d_embed)
 
-        x = self.drop(tok_emb + pos_emb)
-        
+        e = self.drop_e(e)
+        p = self.drop_p(p)
+            
         for block in self.blocks:
-            x = block(x)
+            x = block(e, p)
         x = self.ln_f(x)
 
         if targets is not None:
