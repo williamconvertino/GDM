@@ -79,6 +79,11 @@ class GPT(nn.Module):
         self.config = config
         self.name = f'GPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
 
+        if not config.use_ff:
+            self.name += '_noFF'
+        if not config.use_attn:
+            self.name += '_noAttn'
+
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
         self.wpe = nn.Embedding(config.context_size, config.d_embed)
