@@ -120,8 +120,8 @@ class GPT(nn.Module):
         
         pos = torch.arange(0, S, dtype=torch.long, device=device)
 
-        tok_emb = self.transformer.wte(idx) # token embeddings of shape (B, S, d_embed)
-        pos_emb = self.transformer.wpe(pos) # position embeddings of shape (S, d_embed)
+        tok_emb = self.wte(idx) # token embeddings of shape (B, S, d_embed)
+        pos_emb = self.wpe(pos) # position embeddings of shape (S, d_embed)
 
         x = self.drop(tok_emb + pos_emb)
         
