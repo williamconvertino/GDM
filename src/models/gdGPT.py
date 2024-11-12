@@ -25,17 +25,20 @@ class GDAttention(nn.Module):
     
     def forward(self, e, p):
         B, S, _ = e.size()
+
+        e = torch.cat([e, torch.zeros(B, 1, self.d_embed, device=e.device)], dim=1) # We could instead slice the p tensor, but this allows us to keep the default causal attention mask
         
-        q = p[:, 1:, :].view(B, S + 1, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
-        k = p[:, :-1, :].view(B, S, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
-        v = e.view(B, S, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
+        q = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
+        k = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
+        v = e.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
 
         y = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True, attn_mask=None, dropout_p=self.dropout if self.training else 0)
-        y = y.transpose(1, 2).contiguous().view(B, S, self.d_attn * self.n_head)
+        y = y.transpose(1, 2).contiguous().view(B, S + 1, self.d_embed * self.n_head)
         
+        y = y[:, 1:, :] # Use the outputs for N+1th token, rather than Nth
         y = self.W_o(y)
         y = self.resid_dropout(y)
-
+        
         return y
 
 class Block(nn.Module):
@@ -118,8 +121,6 @@ class gdGPT(nn.Module):
 
         e = self.wte(idx) # token embeddings of shape (B, S, d_embed)
         p = self.wpe(pos).repeat(B, 1, 1) # position embeddings of shape (B, S + 1, d_embed)
-        
-        print(e.shape, p.shape)
 
         e = self.drop_e(e)
         p = self.drop_p(p)

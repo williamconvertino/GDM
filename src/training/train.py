@@ -79,7 +79,7 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
       
       if step <= 1000 or step % 100 == 0 or step == len(train_dataset) - 1:
         time_remaining = get_time_remaining(start_time, step, len(train_dataset))
-        print(f"\r\tEpoch {epoch}/{num_epochs} | Step {step}/{len(train_dataset)} | Train Loss: {train_loss:.4f} | Most Recent Val Loss: {val_loss:.4f} | Time Remaining: {time_remaining}", end='')
+        print(f"\r\tEpoch {epoch}/{num_epochs} ({100 * epoch / num_epochs:.0f}%) | Step {step}/{len(train_dataset)} | Train Loss: {train_loss:.4f} | Most Recent Val Loss: {val_loss:.4f} | Time Remaining: {time_remaining}", end='')
         
     print(f"\nEpoch {epoch}/{num_epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
     torch.save(model.state_dict(), f'{model_dir}/{model.name}_epoch_{epoch}.pt')
