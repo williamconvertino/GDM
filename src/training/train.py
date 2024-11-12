@@ -8,7 +8,7 @@ from src.util import get_time_remaining
 
 LEARNING_RATE = 1e-5
 WEIGHT_DECAY = 1e-2
-MAX_GRAD_NORM = 0.5
+MAX_GRAD_NORM = 1.0
 
 MODEL_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../models')
 RESULTS_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../results')
