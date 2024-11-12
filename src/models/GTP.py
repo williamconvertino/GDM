@@ -80,10 +80,10 @@ class GPT(nn.Module):
         self.name = f'GPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
 
         # Transformer Components
-        self.wte = nn.Embedding(config.vocab_size, config.d_embed),
-        self.wpe = nn.Embedding(config.context_size, config.d_embed),
-        self.drop = nn.Dropout(config.dropout),
-        self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+        self.wte = nn.Embedding(config.vocab_size, config.d_embed)
+        self.wpe = nn.Embedding(config.context_size, config.d_embed)
+        self.drop = nn.Dropout(config.dropout)
+        self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.d_embed, bias=config.bias)
         
         # LM Head
