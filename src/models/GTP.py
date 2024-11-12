@@ -52,7 +52,7 @@ class Block(nn.Module):
         
         if self.use_attn:
           
-          self.ln_attn = nn.layerNorm(config.d_embedding, bias=config.bias)
+          self.ln_attn = nn.LayerNorm(config.d_embedding, bias=config.bias)
           self.attn = CausalAttention(config)
         
         if self.use_ff:
