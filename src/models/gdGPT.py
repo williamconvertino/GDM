@@ -70,7 +70,7 @@ class Block(nn.Module):
             x = x + self.mlp(self.ln_mlp(x))
         return x
 
-class GPT(nn.Module):
+class gdGPT(nn.Module):
 
     def __init__(self, config):
         super().__init__()
@@ -120,8 +120,8 @@ class GPT(nn.Module):
         
         pos = torch.arange(0, S + 1, dtype=torch.long, device=device)
 
-        e = self.transformer.wte(idx) # token embeddings of shape (B, S, d_embed)
-        p = self.transformer.wpe(pos) # position embeddings of shape (S + 1, d_embed)
+        e = self.wte(idx) # token embeddings of shape (B, S, d_embed)
+        p = self.wpe(pos) # position embeddings of shape (S + 1, d_embed)
 
         e = self.drop_e(e)
         p = self.drop_p(p)

@@ -2,11 +2,13 @@ import os
 import time
 import torch
 from torch import nn
+from torch.nn.utils import clip_grad_norm_
 from torch.nn import functional as F
 from src.util import get_time_remaining
 
 LEARNING_RATE = 1e-5
 WEIGHT_DECAY = 1e-2
+MAX_GRAD_NORM = 0.5
 
 MODEL_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../models')
 RESULTS_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../results')
@@ -35,7 +37,7 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
     'num_epoch_steps': len(train_dataset),
     'losses': []
   }
-  record_steps = len(train_dataset) // 50 # Only validates/saves model losses 50 times (for performance/memory reasons)
+  record_steps = len(train_dataset) // 100 # Only validates/saves model losses 100 times (for performance/memory reasons)
   model_dir = os.path.join(MODEL_BASE_DIR, model.name)
   results_dir = os.path.join(RESULTS_BASE_DIR, model.name)
   os.makedirs(results_dir, exist_ok=True)
@@ -56,6 +58,7 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
       
       train_loss = model_forward(model, batch, device)
       train_loss.backward()
+      clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
       optimizer.step()
       
       train_loss = train_loss.item()
@@ -70,13 +73,13 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
             total_val_loss += batch_val_loss
         val_loss = total_val_loss / len(val_dataset)
         
-        # Write both train and val losses every record_steps (for performance/memory reasons)
+        # Write both train and val losses at the same step
         val_results['losses'].append((step, val_loss))
         train_results['losses'].append((step, train_loss))
       
-      if step <= 100 or step % 100 == 0 or step == len(train_dataset) - 1:
+      if step <= 1000 or step % 100 == 0 or step == len(train_dataset) - 1:
         time_remaining = get_time_remaining(start_time, step, len(train_dataset))
-        print(f"\r\tEpoch {epoch + 1}/{num_epochs} | Step {step}/{len(train_dataset)} | Train Loss: {train_loss:.4f} | Most Recent Val Loss: {val_loss:.4f} | Time Remaining: {time_remaining}", end='')
+        print(f"\r\tEpoch {epoch}/{num_epochs} | Step {step}/{len(train_dataset)} | Train Loss: {train_loss:.4f} | Most Recent Val Loss: {val_loss:.4f} | Time Remaining: {time_remaining}", end='')
         
     print(f"\nEpoch {epoch}/{num_epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
     torch.save(model.state_dict(), f'{model_dir}/{model.name}_epoch_{epoch}.pt')
