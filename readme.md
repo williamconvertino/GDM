@@ -1,6 +1,6 @@
 # gdGPT
 
-This repository contains code and resources for the gdGTP project at Duke University.
+This repository contains code and resources for the gdGPT project at Duke University.
 
 ## References
 
