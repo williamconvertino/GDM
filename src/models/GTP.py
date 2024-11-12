@@ -52,15 +52,15 @@ class Block(nn.Module):
         
         if self.use_attn:
           
-          self.ln_attn = nn.LayerNorm(config.d_embedding, bias=config.bias)
+          self.ln_attn = nn.LayerNorm(config.d_embed, bias=config.bias)
           self.attn = CausalAttention(config)
         
         if self.use_ff:
-            self.ln_mlp = nn.LayerNorm(config.d_embedding, bias=config.bias)
+            self.ln_mlp = nn.LayerNorm(config.d_embed, bias=config.bias)
             self.mlp = nn.Sequential(
-                nn.Linear(config.d_embedding, config.d_ff, bias=config.bias),
+                nn.Linear(config.d_embed, config.d_ff, bias=config.bias),
                 nn.GELU(),
-                nn.Linear(config.d_ff, config.d_embedding, bias=config.bias),
+                nn.Linear(config.d_ff, config.d_embed, bias=config.bias),
                 nn.Dropout(config.dropout)
             )
 
