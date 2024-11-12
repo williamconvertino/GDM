@@ -16,8 +16,13 @@ class GDAttention(nn.Module):
         self.d_embed = config.d_embed
         self.dropout = config.dropout
         
-        # Only need W_o matrix for output projection
+        # Dont need W_q, W_k, or W_v matrices
         self.W_o = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
+        
+        W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
+        self.register_buffer('W_N', W_N)
+        
+        self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1)) 
         
         # Dropout
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -175,3 +180,47 @@ class gdGPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+    
+    def beam_search_generate(self, x, tokenizer, max_length=100, beam_width=5, max_ngrams=None, return_all_beams=False):
+        
+        if isinstance(x, str):
+            x = tokenizer(x, return_tensors='pt')['input_ids']
+        
+        beams = [{'sequence': x, 'score': 0, 'eos': False, 'length': 0}]
+        
+        self.eval()
+        with torch.no_grad():
+            while not all([beam['eos'] for beam in beams]) and max([beam['length'] for beam in beams]) < max_length:
+                updated_beams = []
+                for beam in beams:
+                    if beam['eos']:
+                        updated_beams.append(beam)
+                        continue
+                logits, _ = self.forward(beam['sequence'])
+                logits = logits[0, 0, :]
+                top_k_logits, top_k_tokens = torch.topk(logits, beam_width)
+                for i in range(beam_width):
+                    new_sequence = torch.cat([beam['sequence'], top_k_tokens[i].unsqueeze(0).unsqueeze(0)], dim=1)
+                    new_score = beam['score'] + top_k_logits[i].item()
+                    new_eos = top_k_tokens[i].item() == tokenizer.eos_token_id
+                    new_length = beam['length'] + 1
+                    updated_beams.append({'sequence': new_sequence, 'score': new_score, 'eos': new_eos, 'length': new_length})
+                
+                if max_ngrams is not None:
+                    valid_beams = []
+                
+                    for beam in updated_beams:
+                        sequence = beam['sequence'][0].tolist()
+                        ngrams = [tuple(sequence[i:i+max_ngrams]) for i in range(len(sequence)-max_ngrams+1)]
+                        if len(ngrams) == len(set(ngrams)):
+                            valid_beams.append(beam)
+                    
+                    updated_beams = valid_beams
+                
+                beams = sorted(updated_beams, key=lambda x: x['score'] / x['length'], reverse=True)[:beam_width]
+            
+            
+        if return_all_beams:
+            return [tokenizer.decode(beam['sequence'][0].tolist()) for beam in beams]
+        
+        return tokenizer.decode(beams[0]['sequence'][0].tolist())

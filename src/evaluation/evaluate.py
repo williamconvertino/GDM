@@ -25,15 +25,10 @@ LONG_TEXTS = [
 def generate_response(model, tokenizer, text):
     model.eval()
     with torch.no_grad():
-      encoded_text = tokenizer.encode(text)
-      start_tokens = len(encoded_text)
-      encoded_text = torch.tensor(encoded_text).unsqueeze(0)
-      output = model.generate(encoded_text, max_new_tokens=20)[0].tolist()
-      output = output[start_tokens:]
-      decoded_output = tokenizer.decode(output)
+      output = model.beam_search_generate(text, tokenizer, max_length=100, beam_width=5, max_ngrams=None)[0].tolist()
       
-    return decoded_output
-
+    return output
+  
 def evaluate_model_outputs(model, tokenizer):
   
   model_dir = f'{MODEL_BASE_DIR}/{model.name}/'
