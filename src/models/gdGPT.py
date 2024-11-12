@@ -26,10 +26,6 @@ class GDAttention(nn.Module):
     def forward(self, e, p):
         B, S, _ = e.size()
         
-        # q = self.W_q(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-        # k = self.W_k(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-        # v = self.W_v(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-
         q = p[:, 1:, :].view(B, S + 1, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
         k = p[:, :-1, :].view(B, S, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
         v = e.view(B, S, self.n_head, self.d_embed // self.n_head).transpose(1, 2)
@@ -76,7 +72,7 @@ class gdGPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'GPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
+        self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
 
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
@@ -121,7 +117,9 @@ class gdGPT(nn.Module):
         pos = torch.arange(0, S + 1, dtype=torch.long, device=device)
 
         e = self.wte(idx) # token embeddings of shape (B, S, d_embed)
-        p = self.wpe(pos) # position embeddings of shape (S + 1, d_embed)
+        p = self.wpe(pos).repeat(B, 1, 1) # position embeddings of shape (B, S + 1, d_embed)
+        
+        print(e.shape, p.shape)
 
         e = self.drop_e(e)
         p = self.drop_p(p)

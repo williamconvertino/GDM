@@ -8,7 +8,7 @@ from src.util import get_time_remaining
 
 LEARNING_RATE = 1e-5
 WEIGHT_DECAY = 1e-2
-MAX_GRAD_NORM = 1.0
+# MAX_GRAD_NORM = 1.0
 
 MODEL_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../models')
 RESULTS_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../results')
@@ -58,7 +58,7 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
       
       train_loss = model_forward(model, batch, device)
       train_loss.backward()
-      clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
+      # clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
       optimizer.step()
       
       train_loss = train_loss.item()
