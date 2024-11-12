@@ -1,4 +1,4 @@
-# gdGTP
+# gdGPT
 
 This repository contains code and resources for the gdGTP project at Duke University.
 
