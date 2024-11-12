@@ -9,7 +9,7 @@ if path not in sys.path:
   
 # Install the requirements
 try:
-  subprocess.check_call(["pip", "install", "-r", "../requirements.txt", "--quiet"])
+  subprocess.check_call(["pip3", "install", "-r", "../requirements.txt", "--quiet"])
   print("Requirements installed")
 except:
   print("Failed to install requirements")
