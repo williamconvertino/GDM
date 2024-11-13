@@ -102,9 +102,6 @@ class gdGPT(nn.Module):
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
         self.wte.weight = self.lm_head.weight # Weight tying
 
-        # Loss Function
-        self.loss_fn = nn.CrossEntropyLoss(ignore_index=-1) # nn.CrossEntropyLoss can prevent gradient explosion on earlier pytorch versions
-
         # Weight initialization
         self.apply(self._init_weights)
         for pn, p in self.named_parameters():
@@ -148,9 +145,9 @@ class gdGPT(nn.Module):
         if targets is not None:
             # if we are given some desired targets also calculate the loss
             logits = self.lm_head(x)
+            logits = torch.clamp(logits, min=-1e7, max=1e7)
             targets = targets.contiguous()
-            # loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-            loss = self.loss_fn(logits.view(-1, logits.size(-1)), targets.view(-1))
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         else:
             # inference-time mini-optimization: only forward the lm_head on the very last position
             logits = self.lm_head(x[:, [-1], :])
