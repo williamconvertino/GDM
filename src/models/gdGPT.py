@@ -22,7 +22,7 @@ class GDAttention(nn.Module):
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
         
-        # self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1)) 
+        self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1)) 
         
         # Dropout
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -43,10 +43,14 @@ class GDAttention(nn.Module):
         y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
         y = y[:, :, 1:, :]
         y = self.W_N[:, :, :S, :S] @ y
-        y = y.transpose(1, 2).contiguous().view(B, S, self.d_embed * self.n_head)
+        y = y * self.W_LR[:, :, :S, :]
+
+        y = torch.sum(y, dim=1)
+        
+        # y = y.transpose(1, 2).contiguous().view(B, S, self.d_embed * self.n_head)
         
          # Use the outputs associated with the N+1th token, rather than Nth
-        y = self.c_proj(y)
+        # y = self.c_proj(y)
         y = self.resid_dropout(y)
         
         return y
