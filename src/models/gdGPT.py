@@ -17,7 +17,7 @@ class GDAttention(nn.Module):
         self.dropout = config.dropout
         
         # Dont need W_q, W_k, or W_v matrices
-        self.W_o = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
+        self.c_proj = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
         
         # W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
         # self.register_buffer('W_N', W_N)
@@ -44,7 +44,7 @@ class GDAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, S + 1, self.d_embed * self.n_head)
         
         y = y[:, 1:, :] # Use the outputs associated with the N+1th token, rather than Nth
-        y = self.W_o(y)
+        y = self.c_proj(y)
         y = self.resid_dropout(y)
         
         return y
