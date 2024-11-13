@@ -4,6 +4,13 @@ import torch
 
 MODEL_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../models')
 
+SINGLE_WORD = [
+  "Once",
+  "a",
+  "to",
+  "he"
+]
+
 SHORT_TEXTS = [
   "Once upon a time,",
   "In a land far far away,",
@@ -25,8 +32,7 @@ LONG_TEXTS = [
 def generate_response(model, tokenizer, text):
     model.eval()
     with torch.no_grad():
-      output = model.beam_search_generate(text, tokenizer, max_length=100, beam_width=5, max_ngrams=None)[0].tolist()
-      
+      output = model.beam_search_generate(text, tokenizer, max_length=100, beam_width=5, max_ngrams=None, only_return_new_tokens=True)
     return output
   
 def evaluate_model_outputs(model, tokenizer):
@@ -39,6 +45,14 @@ def evaluate_model_outputs(model, tokenizer):
   model.load_state_dict(model_state_dict)
   
   print(f"Loaded model {model.name} from epoch {most_recent_epoch}")
+  
+  print("=" * 100)
+  print("Single Word:")
+  print("=" * 100)
+  
+  for text in SINGLE_WORD:
+    output = generate_response(model, tokenizer, text)
+    print(f"{text} [{output}]")
   
   print("=" * 100)
   print("Short Texts:")

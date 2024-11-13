@@ -19,10 +19,10 @@ class GDAttention(nn.Module):
         # Dont need W_q, W_k, or W_v matrices
         self.W_o = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
         
-        W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
-        self.register_buffer('W_N', W_N)
+        # W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
+        # self.register_buffer('W_N', W_N)
         
-        self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1)) 
+        # self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1)) 
         
         # Dropout
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -181,10 +181,12 @@ class gdGPT(nn.Module):
 
         return idx
     
-    def beam_search_generate(self, x, tokenizer, max_length=100, beam_width=5, max_ngrams=None, return_all_beams=False):
+    def beam_search_generate(self, x, tokenizer, max_length=100, beam_width=5, max_ngrams=None, return_all_beams=False, only_return_new_tokens=False):
         
         if isinstance(x, str):
             x = tokenizer(x, return_tensors='pt')['input_ids']
+        
+        original_sequence_length = x.size(1)
         
         beams = [{'sequence': x, 'score': 0, 'eos': False, 'length': 0}]
         
@@ -219,8 +221,12 @@ class gdGPT(nn.Module):
                 
                 beams = sorted(updated_beams, key=lambda x: x['score'] / x['length'], reverse=True)[:beam_width]
             
-            
         if return_all_beams:
             return [tokenizer.decode(beam['sequence'][0].tolist()) for beam in beams]
         
-        return tokenizer.decode(beams[0]['sequence'][0].tolist())
+        output = beams[0]['sequence'][0].tolist()
+        
+        if only_return_new_tokens:
+            output = output[original_sequence_length:]
+
+        return tokenizer.decode(output)
