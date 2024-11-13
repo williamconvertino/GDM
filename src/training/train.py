@@ -1,6 +1,7 @@
 import os
 import time
 import torch
+import json
 from torch import nn
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import functional as F
@@ -31,10 +32,12 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
   # Results
   train_results = {
     'num_epoch_steps': len(train_dataset),
+    'num_epochs': 0,
     'losses': []
   }
   val_results = {
     'num_epoch_steps': len(train_dataset),
+    'num_epochs': 0,
     'losses': []
   }
   record_steps = len(train_dataset) // 100 # Only validates/saves model losses 100 times (for performance/memory reasons)
@@ -48,8 +51,12 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
   for epoch in range(starting_epoch, num_epochs):
     
     start_time = time.time()
+    
     train_loss = 0.0
     val_loss = 0.0
+    
+    train_results['num_epochs'] = epoch
+    val_results['num_epochs'] = epoch
     
     for step, batch in enumerate(train_dataset):
       
@@ -81,8 +88,12 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
       if step <= 1000 or step % 100 == 0 or step == len(train_dataset) - 1:
         time_remaining = get_time_remaining(start_time, step, len(train_dataset))
         print(f"\r\tEpoch {epoch}/{num_epochs} ({100 * epoch / num_epochs:.0f}%) | Step {step}/{len(train_dataset)} | Train Loss: {train_loss:.4f} | Most Recent Val Loss: {val_loss:.4f} | Time Remaining: {time_remaining}", end='')
-        
+    
     print(f"\nEpoch {epoch}/{num_epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+    
     torch.save(model.state_dict(), f'{model_dir}/{model.name}_epoch_{epoch}.pt')
-    torch.save(train_results, f'{results_dir}/{model.name}_train_results.pt')
-    torch.save(val_results, f'{results_dir}/{model.name}_val_results.pt')
+    
+    with open(f'{results_dir}/{model.name}_train_results.json', 'w') as f:
+      json.dump(train_results, f)
+    with open(f'{results_dir}/{model.name}_val_results.json', 'w') as f:
+      json.dump(val_results, f)
