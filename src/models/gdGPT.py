@@ -51,16 +51,21 @@ class GDAttention(nn.Module):
         V = V.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
         
         # This mask allows for causal attention while incorporating the N+1th query
-        mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1).view(1, S, S)
-        mask = torch.cat([mask, torch.ones(1, 1, S, device=e.device)], dim=1)
+        mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1)
+        mask = torch.cat([mask, torch.ones(1, S, device=e.device)], dim=0)
         mask = mask.bool()
-
+        
+        scale_factor = 1.0
+        attn_bias = torch.zeros(S + 1, S, device=e.device)
+        attn_bias.masked_fill_(mask.logical_not(), float("-inf"))
+        attn_weight = Q @ K.transpose(-2, -1) / scale_factor
+        attn_weight += attn_bias
+        attn_weight = F.softmax(attn_weight, dim=-1)
+        attn_weight = self.attn_dropout(attn_weight)
+        
+        y = attn_weight @ V
+        
         # y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
-        attn = torch.matmul(Q, K.transpose(-2, -1))
-        attn = attn.masked_fill(mask.logical_not(), -float('inf'))
-        attn = F.softmax(attn, dim=-1)
-        attn = self.attn_dropout(attn)
-        y = torch.matmul(attn, V)
             
         y = y[:, :, 1:, :]
         
