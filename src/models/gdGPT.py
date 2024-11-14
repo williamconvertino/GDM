@@ -16,9 +16,7 @@ class GDAttention(nn.Module):
         self.d_embed = config.d_embed
         self.dropout = config.dropout
         self.sum_outputs = config.sum_outputs
-        self.use_attn_lr = config.use_attn_lr
         self.use_w_qkv = config.use_w_qkv
-        self.use_wn = config.use_wn
         
         self.c_proj = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
         
@@ -120,15 +118,11 @@ class gdGPT(nn.Module):
             self.name += '_noFF'
         if not config.use_attn:
             self.name += '_noAttn'
-        if config.use_attn_lr:
-            self.name += '_attnLR'
         if config.sum_outputs:
             self.name += '_sumOut'
         if not config.use_w_qkv:
             self.name += '_noWQKV'
-        if not config.use_wn:
-            self.name += '_noWN'
-
+        
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
         self.wpe = nn.Embedding(config.context_size + 1, config.d_embed) # Need a positional vector for the N+1th token
