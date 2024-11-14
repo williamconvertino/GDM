@@ -35,9 +35,9 @@ class GDAttention(nn.Module):
         self.resid_dropout = nn.Dropout(config.dropout)
     
     def forward(self, e, p):
-        B, S, _ = e.size()
+        B, S, D = e.size()
 
-        q = p
+        q = p[:, 1:, :]
         k = p[:, :-1, :]
         v = e
         
@@ -46,28 +46,23 @@ class GDAttention(nn.Module):
             K = self.W_k(k)
             V = self.W_v(v)
             
-        Q = Q.view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
+        Q = Q.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
         K = K.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
         V = V.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
         
-        # This mask allows for causal attention while incorporating the N+1th query
-        mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1)
-        mask = torch.cat([mask, torch.ones(1, S, device=e.device)], dim=0)
+        mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
         
         scale_factor = 1.0
-        attn_bias = torch.zeros(S + 1, S, device=e.device)
+        attn_bias = torch.zeros(S, S, device=e.device)
         attn_bias.masked_fill_(mask.logical_not(), float("-inf"))
-        attn_weight = Q @ K.transpose(-2, -1) / scale_factor
+        attn_weight = Q @ K.transpose(-2, -1) * scale_factor
         attn_weight += attn_bias
         attn_weight = F.softmax(attn_weight, dim=-1)
+        
         attn_weight = self.attn_dropout(attn_weight)
         
         y = attn_weight @ V
-        
-        # y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
-            
-        y = y[:, :, 1:, :]
         
         y = self.W_N[:, :, :S, :S] @ y
         
@@ -135,6 +130,8 @@ class gdGPT(nn.Module):
         self.drop_e = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.d_embed, bias=config.bias)
+        self.ln_e = nn.LayerNorm(config.d_embed, bias=config.bias)
+        self.ln_p = nn.LayerNorm(config.d_embed, bias=config.bias)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -172,6 +169,9 @@ class gdGPT(nn.Module):
 
         e = self.wte(idx) # token embeddings of shape (B, S, d_embed)
         p = self.wpe(pos).repeat(B, 1, 1) # position embeddings of shape (B, S + 1, d_embed)
+
+        e = self.ln_e(e)
+        p = self.ln_p(p)
 
         e = self.drop_e(e)
         p = self.drop_p(p)
