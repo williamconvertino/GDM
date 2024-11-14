@@ -30,7 +30,7 @@ class GDAttention(nn.Module):
         self.register_buffer('W_N', W_N)
         
         self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1))
-        nn.init.normal_(self.W_LR, mean=0.0, std=0.02)
+        nn.init.normal_(self.W_LR, mean=0.0, std=0.001)
         
         # Dropout
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -56,15 +56,19 @@ class GDAttention(nn.Module):
         mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1).view(1, S, S)
         mask = torch.cat([mask, torch.ones(1, 1, S, device=e.device)], dim=1)
         mask = mask.bool()
-        
-        y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
+
+        # y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
+        attn = torch.matmul(Q, K.transpose(-2, -1))
+        attn = attn.masked_fill(mask.logical_not(), -float('inf'))
+        attn = F.softmax(attn, dim=-1)
+        attn = self.attn_dropout(attn)
+        y = torch.matmul(attn, V)
+            
         y = y[:, :, 1:, :]
         
-        if self.use_wn:
-            y = self.W_N[:, :, :S, :S] @ y
+        y = self.W_N[:, :, :S, :S] @ y
         
-        if self.use_attn_lr:
-            y = y * self.W_LR[:, :, :S, :]
+        y = y * self.W_LR[:, :, :S, :]
         
         if self.sum_outputs:
             y = torch.sum(y, dim=1)

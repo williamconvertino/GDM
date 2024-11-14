@@ -14,10 +14,8 @@ class GPTConfig:
     use_ff: bool = True
     bias: bool = False
     dropout: float = 0.1
-    use_attn_lr: bool = False
     sum_outputs: bool = False
     use_w_qkv: bool = True
-    use_wn: bool = True
     
     def __post_init__(self):
         self.d_attn = self.d_attn or self.d_embed
