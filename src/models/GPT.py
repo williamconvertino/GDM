@@ -74,7 +74,7 @@ class Block(nn.Module):
         if self.use_attn:
             x = x + self.attn(self.ln_attn(x), e, p)
         if self.use_ff:
-            x = x + self.mlp(self.ln_mlp(x), e, p)
+            x = x + self.mlp(self.ln_mlp(x))
         return x
 
 class GPT(nn.Module):
