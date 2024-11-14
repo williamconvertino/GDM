@@ -18,8 +18,11 @@ class GDAttention(nn.Module):
         self.sum_outputs = config.sum_outputs
         self.use_attn_lr = config.use_attn_lr
         
-        # Dont need W_q, W_k, or W_v matrices
         self.c_proj = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
+        
+        self.W_q = nn.Linear(self.d_embed, self.d_embed * self.n_head, bias=config.bias)
+        self.W_k = nn.Linear(self.d_embed, self.d_embed * self.n_head, bias=config.bias)
+        self.W_v = nn.Linear(self.d_embed, self.d_embed * self.n_head, bias=config.bias)
         
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
@@ -34,9 +37,17 @@ class GDAttention(nn.Module):
     def forward(self, e, p):
         B, S, _ = e.size()
 
-        Q = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2) # Use N+1 positional embeddings for query
-        K = p[:, :-1, :].repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2) # Only use first N positional embeddings for key
-        V = e.repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
+        q = p
+        k = p[:, :-1, :]
+        v = e
+        
+        Q = self.W_q(q).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
+        K = self.W_k(k).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
+        V = self.W_v(v).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
+
+        # Q = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2) # Use N+1 positional embeddings for query
+        # K = p[:, :-1, :].repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2) # Only use first N positional embeddings for key
+        # V = e.repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
 
         # This mask allows for causal attention while incorporating the N+1th query
         mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1).view(1, S, S)
