@@ -26,6 +26,7 @@ class TinyStoriesTokenizer(GPT2TokenizerFast):
     super().__init__(vocab_file=self.vocab_path, merges_file=self.merges_path)
     
     self.add_special_tokens({'eos_token': '[EOS]'})
+    # self.add_special_tokens({'pad_token': '[PAD]'})
   
   def vocab_size(self):
     return self._vocab_size
