@@ -6,6 +6,7 @@ from torch import nn
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import functional as F
 from src.util import get_time_remaining
+from src.visualization import visualize_loss
 
 LEARNING_RATE = 1e-5
 WEIGHT_DECAY = 1e-2
@@ -98,3 +99,5 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
       json.dump(train_results, f)
     with open(f'{RESULTS_BASE_DIR}/{model.name}_val_results.json', 'w') as f:
       json.dump(val_results, f)
+    
+    visualize_loss((train_results, "Train"), (val_results, "Test"), title="{model.name} Training Losses")
