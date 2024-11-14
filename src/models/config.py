@@ -16,6 +16,7 @@ class GPTConfig:
     dropout: float = 0.1
     sum_outputs: bool = False
     use_w_qkv: bool = True
+    use_ppe_encoding: bool = False
     
     def __post_init__(self):
         self.d_attn = self.d_attn or self.d_embed

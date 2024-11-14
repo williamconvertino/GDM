@@ -16,6 +16,7 @@ class CausalAttention(nn.Module):
         self.d_embed = config.d_embed
         self.d_attn = config.d_attn
         self.dropout = config.dropout
+        self.use_ppe_encoding = config.use_ppe_encoding
         
         # We don't use d_embed // n_head because we want to keep square matrices (to be consistent with GD transformer theory)
         self.W_q = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
@@ -27,12 +28,17 @@ class CausalAttention(nn.Module):
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
     
-    def forward(self, x):
+    def forward(self, x, e, p):
         B, S, _ = x.size()
         
-        q = self.W_q(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-        k = self.W_k(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
-        v = self.W_v(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+        if self.use_ppe_encoding:
+            q = self.W_q(p).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+            k = self.W_k(p).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+            v = self.W_v(e).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+        else:
+            q = self.W_q(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+            k = self.W_k(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
+            v = self.W_v(x).view(B, S, self.n_head, self.d_attn).transpose(1, 2)
 
         y = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True, attn_mask=None, dropout_p=self.dropout if self.training else 0)
         y = y.transpose(1, 2).contiguous().view(B, S, self.d_attn * self.n_head)
@@ -64,11 +70,11 @@ class Block(nn.Module):
                 nn.Dropout(config.dropout)
             )
 
-    def forward(self, x):
+    def forward(self, x, e, p):
         if self.use_attn:
-            x = x + self.attn(self.ln_attn(x))
+            x = x + self.attn(self.ln_attn(x), e, p)
         if self.use_ff:
-            x = x + self.mlp(self.ln_mlp(x))
+            x = x + self.mlp(self.ln_mlp(x), e, p)
         return x
 
 class GPT(nn.Module):
@@ -129,9 +135,11 @@ class GPT(nn.Module):
         pos_emb = self.wpe(pos) # position embeddings of shape (S, d_embed)
 
         x = self.drop(tok_emb + pos_emb)
+        e = self.drop(tok_emb)
+        p = self.drop(pos_emb.repeat(B, 1, 1))
         
         for block in self.blocks:
-            x = block(x)
+            x = block(x, e, p)
         x = self.ln_f(x)
 
         if targets is not None:

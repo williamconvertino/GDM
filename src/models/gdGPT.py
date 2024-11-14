@@ -37,14 +37,18 @@ class GDAttention(nn.Module):
     def forward(self, e, p):
         B, S, D = e.size()
 
-        q = p[:, 1:, :]
-        k = p[:, :-1, :]
-        v = e
+        Q = p[:, 1:, :]
+        K = p[:, :-1, :]
+        V = e
         
         if self.use_w_qkv:
-            Q = self.W_q(q)
-            K = self.W_k(k)
-            V = self.W_v(v)
+            Q = self.W_q(Q)
+            K = self.W_k(K)
+            V = self.W_v(V)
+        else:
+            Q = Q.repeat(1, 1, self.n_head)
+            K = K.repeat(1, 1, self.n_head)
+            V = V.repeat(1, 1, self.n_head)
             
         Q = Q.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
         K = K.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
