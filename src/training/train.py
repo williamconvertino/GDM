@@ -42,7 +42,6 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
   }
   record_steps = len(train_dataset) // 100 # Only validates/saves model losses 100 times (for performance/memory reasons)
   model_dir = os.path.join(MODEL_BASE_DIR, model.name)
-  results_dir = os.path.join(RESULTS_BASE_DIR, model.name)
   
   # Training Loop
   print(f"Training {model.name} [Device: {device}]")
@@ -80,8 +79,9 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
         val_loss = total_val_loss / len(val_dataset)
         
         # Write both train and val losses at the same step
-        val_results['losses'].append((step, val_loss))
-        train_results['losses'].append((step, train_loss))
+        total_step = epoch * len(train_dataset) + step
+        val_results['losses'].append((total_step, val_loss))
+        train_results['losses'].append((total_step, train_loss))
       
       if step <= 1000 or step % 100 == 0 or step == len(train_dataset) - 1:
         time_remaining = get_time_remaining(start_time, step, len(train_dataset))
@@ -89,12 +89,12 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
     
     print(f"\nEpoch {epoch}/{num_epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
     
-    os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(RESULTS_BASE_DIR, exist_ok=True)
     os.makedirs(model_dir, exist_ok=True)
     
     torch.save(model.state_dict(), f'{model_dir}/{model.name}_epoch_{epoch}.pt')
     
-    with open(f'{results_dir}/{model.name}_train_results.json', 'w') as f:
+    with open(f'{RESULTS_BASE_DIR}/{model.name}_train_results.json', 'w') as f:
       json.dump(train_results, f)
-    with open(f'{results_dir}/{model.name}_val_results.json', 'w') as f:
+    with open(f'{RESULTS_BASE_DIR}/{model.name}_val_results.json', 'w') as f:
       json.dump(val_results, f)

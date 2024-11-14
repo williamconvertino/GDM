@@ -17,6 +17,8 @@ class GDAttention(nn.Module):
         self.dropout = config.dropout
         self.sum_outputs = config.sum_outputs
         self.use_attn_lr = config.use_attn_lr
+        self.use_w_qkv = config.use_w_qkv
+        self.use_wn = config.use_wn
         
         self.c_proj = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
         
@@ -41,14 +43,15 @@ class GDAttention(nn.Module):
         k = p[:, :-1, :]
         v = e
         
-        Q = self.W_q(q).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
-        K = self.W_k(k).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
-        V = self.W_v(v).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
-
-        # Q = p.repeat(1, 1, self.n_head).view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2) # Use N+1 positional embeddings for query
-        # K = p[:, :-1, :].repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2) # Only use first N positional embeddings for key
-        # V = e.repeat(1, 1, self.n_head).view(B, S, self.n_head, self.d_embed).transpose(1, 2)
-
+        if self.use_w_qkv:
+            Q = self.W_q(q)
+            K = self.W_k(k)
+            V = self.W_v(v)
+            
+        Q = Q.view(B, S + 1, self.n_head, self.d_embed).transpose(1, 2)
+        K = K.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
+        V = V.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
+        
         # This mask allows for causal attention while incorporating the N+1th query
         mask = torch.tril(torch.ones(S, S, device=e.device), diagonal=-1).view(1, S, S)
         mask = torch.cat([mask, torch.ones(1, 1, S, device=e.device)], dim=1)
@@ -56,7 +59,9 @@ class GDAttention(nn.Module):
         
         y = torch.nn.functional.scaled_dot_product_attention(Q, K, V, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
         y = y[:, :, 1:, :]
-        y = self.W_N[:, :, :S, :S] @ y
+        
+        if self.use_wn:
+            y = self.W_N[:, :, :S, :S] @ y
         
         if self.use_attn_lr:
             y = y * self.W_LR[:, :, :S, :]
@@ -111,6 +116,14 @@ class gdGPT(nn.Module):
             self.name += '_noFF'
         if not config.use_attn:
             self.name += '_noAttn'
+        if config.use_attn_lr:
+            self.name += '_attnLR'
+        if config.sum_outputs:
+            self.name += '_sumOut'
+        if not config.use_w_qkv:
+            self.name += '_noWQKV'
+        if not config.use_wn:
+            self.name += '_noWN'
 
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
