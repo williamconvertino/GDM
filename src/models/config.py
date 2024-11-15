@@ -14,8 +14,6 @@ class GPTConfig:
     use_ff: bool = True
     bias: bool = False
     dropout: float = 0.1
-    sum_outputs: bool = False
-    use_w_qkv: bool = True
     use_ppe_encoding: bool = False
     
     def __post_init__(self):

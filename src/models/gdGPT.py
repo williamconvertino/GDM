@@ -14,45 +14,32 @@ class GDAttention(nn.Module):
         
         self.n_head = config.n_head
         self.d_embed = config.d_embed
-        self.dropout = config.dropout
-        self.sum_outputs = config.sum_outputs
-        self.use_w_qkv = config.use_w_qkv
         
-        self.c_proj = nn.Linear(self.d_embed * self.n_head, self.d_embed, bias=config.bias)
-        
-        self.W_q = nn.Linear(self.d_embed, self.d_embed * self.n_head, bias=config.bias)
-        self.W_k = nn.Linear(self.d_embed, self.d_embed * self.n_head, bias=config.bias)
-        self.W_v = nn.Linear(self.d_embed, self.d_embed * self.n_head, bias=config.bias)
+        self.qk_diag_values = nn.Parameter(torch.ones(self.n_head, config.context_size + 1))
         
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
         
         self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1))
+        
         nn.init.normal_(self.W_LR, mean=0.0, std=0.001)
         
-        # Dropout
-        self.attn_dropout = nn.Dropout(config.dropout)
-        self.resid_dropout = nn.Dropout(config.dropout)
-    
+        
     def forward(self, e, p):
         B, S, D = e.size()
 
-        Q = p[:, 1:, :]
-        K = p[:, :-1, :]
-        V = e
+        q = p[:, 1:, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        k = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        v = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
         
-        if self.use_w_qkv:
-            Q = self.W_q(Q)
-            K = self.W_k(K)
-            V = self.W_v(V)
-        else:
-            Q = Q.repeat(1, 1, self.n_head)
-            K = K.repeat(1, 1, self.n_head)
-            V = V.repeat(1, 1, self.n_head)
-            
-        Q = Q.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
-        K = K.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
-        V = V.view(B, S, self.n_head, self.d_embed).transpose(1, 2)
+        print(q.shape, k.shape, v.shape)
+        
+        W_q = torch.diag_embed(self.qk_diag_values[:, 1:]).unsqueeze(0)
+        W_k = torch.diag_embed(self.qk_diag_values[:, :-1]).unsqueeze(0)
+        
+        Q = W_q @ q
+        K = W_k @ v
+        V = v # No need for a W_v matrix
         
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
@@ -64,22 +51,16 @@ class GDAttention(nn.Module):
         attn_weight += attn_bias
         attn_weight = F.softmax(attn_weight, dim=-1)
         
-        attn_weight = self.attn_dropout(attn_weight)
-        
         y = attn_weight @ V
+        
+        print(y.shape)
         
         y = self.W_N[:, :, :S, :S] @ y
         
         y = y * self.W_LR[:, :, :S, :]
         
-        if self.sum_outputs:
-            y = torch.sum(y, dim=1)
-        else:
-            y = y.transpose(1, 2).contiguous().view(B, S, self.d_embed * self.n_head)
-            y = self.c_proj(y)
-        
-        y = self.resid_dropout(y)
-        
+        y = torch.sum(y, dim=1)
+    
         return y
 
 class Block(nn.Module):
@@ -122,20 +103,11 @@ class gdGPT(nn.Module):
             self.name += '_noFF'
         if not config.use_attn:
             self.name += '_noAttn'
-        if config.sum_outputs:
-            self.name += '_sumOut'
-        if not config.use_w_qkv:
-            self.name += '_noWQKV'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
         self.wpe = nn.Embedding(config.context_size + 1, config.d_embed) # Need a positional vector for the N+1th token
-        self.drop_p = nn.Dropout(config.dropout)
-        self.drop_e = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
-        self.ln_f = nn.LayerNorm(config.d_embed, bias=config.bias)
-        self.ln_e = nn.LayerNorm(config.d_embed, bias=config.bias)
-        self.ln_p = nn.LayerNorm(config.d_embed, bias=config.bias)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -173,16 +145,9 @@ class gdGPT(nn.Module):
 
         e = self.wte(idx) # token embeddings of shape (B, S, d_embed)
         p = self.wpe(pos).repeat(B, 1, 1) # position embeddings of shape (B, S + 1, d_embed)
-
-        e = self.ln_e(e)
-        p = self.ln_p(p)
-
-        e = self.drop_e(e)
-        p = self.drop_p(p)
-            
+    
         for block in self.blocks:
             x = block(e, p)
-        x = self.ln_f(x)
 
         if targets is not None:
             # if we are given some desired targets also calculate the loss

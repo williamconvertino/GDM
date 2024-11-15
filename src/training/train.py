@@ -100,4 +100,4 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
     with open(f'{RESULTS_BASE_DIR}/{model.name}_val_results.json', 'w') as f:
       json.dump(val_results, f)
     
-    visualize_loss((train_results, "Train"), (val_results, "Test"), title="{model.name} Training Losses")
+    visualize_loss((train_results, "Train"), (val_results, "Test"), title=f"{model.name} Training Losses")

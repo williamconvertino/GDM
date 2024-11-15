@@ -22,7 +22,7 @@ class CausalAttention(nn.Module):
         self.W_q = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
         self.W_k = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
         self.W_v = nn.Linear(self.d_embed, self.d_attn * self.n_head, bias=config.bias)
-        self.W_o = nn.Linear(self.d_attn * self.n_head, self.d_embed, bias=config.bias)
+        self.c_proj = nn.Linear(self.d_attn * self.n_head, self.d_embed, bias=config.bias)
         
         # Dropout
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -43,7 +43,7 @@ class CausalAttention(nn.Module):
         y = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True, attn_mask=None, dropout_p=self.dropout if self.training else 0)
         y = y.transpose(1, 2).contiguous().view(B, S, self.d_attn * self.n_head)
         
-        y = self.W_o(y)
+        y = self.c_proj(y)
         y = self.resid_dropout(y)
 
         return y
@@ -135,8 +135,8 @@ class GPT(nn.Module):
         pos_emb = self.wpe(pos) # position embeddings of shape (S, d_embed)
 
         x = self.drop(tok_emb + pos_emb)
-        e = self.drop(tok_emb)
-        p = self.drop(pos_emb.repeat(B, 1, 1))
+        e = tok_emb
+        p = pos_emb.repeat(B, 1, 1)
         
         for block in self.blocks:
             x = block(x, e, p)
