@@ -83,7 +83,8 @@ class GPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'GPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
+        # self.name = f'GPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
+        self.name = f'GPT'
 
         if not config.use_ff:
             self.name += '_noFF'

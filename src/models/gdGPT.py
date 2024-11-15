@@ -89,7 +89,8 @@ class gdGPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}D'
+        # self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}D'
+        self.name = f'gdGPT'
         
         if config.use_ff:
             self.name += '_useFF'
