@@ -32,8 +32,8 @@ class GDAttention(nn.Module):
         k = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         v = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
         
-        W_q = torch.diag_embed(self.qk_diag_values[:, 1:]).unsqueeze(0)
-        W_k = torch.diag_embed(self.qk_diag_values[:, :-1]).unsqueeze(0)
+        W_q = torch.diag_embed(self.qk_diag_values[:, 1:S+1]).unsqueeze(0)
+        W_k = torch.diag_embed(self.qk_diag_values[:, :S]).unsqueeze(0)
         
         Q = W_q @ q
         K = W_k @ k
