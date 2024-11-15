@@ -32,33 +32,26 @@ class GDAttention(nn.Module):
         k = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         v = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
         
-        print(q.shape, k.shape, v.shape)
-        
         W_q = torch.diag_embed(self.qk_diag_values[:, 1:]).unsqueeze(0)
         W_k = torch.diag_embed(self.qk_diag_values[:, :-1]).unsqueeze(0)
         
         Q = W_q @ q
-        K = W_k @ v
+        K = W_k @ k
         V = v # No need for a W_v matrix
         
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
         
-        scale_factor = 1.0
         attn_bias = torch.zeros(S, S, device=e.device)
         attn_bias.masked_fill_(mask.logical_not(), float("-inf"))
-        attn_weight = Q @ K.transpose(-2, -1) * scale_factor
+        attn_weight = Q @ K.transpose(-2, -1)
         attn_weight += attn_bias
         attn_weight = F.softmax(attn_weight, dim=-1)
         
         y = attn_weight @ V
         
-        print(y.shape)
-        
         y = self.W_N[:, :, :S, :S] @ y
-        
         y = y * self.W_LR[:, :, :S, :]
-        
         y = torch.sum(y, dim=1)
     
         return y
@@ -69,9 +62,7 @@ class Block(nn.Module):
         super().__init__()
         
         self.use_ff = config.use_ff
-      
-        self.ln_p = nn.LayerNorm(config.d_embed, bias=config.bias)
-        self.ln_e = nn.LayerNorm(config.d_embed, bias=config.bias)
+        
         self.attn = GDAttention(config)
         
         if self.use_ff:
@@ -84,11 +75,12 @@ class Block(nn.Module):
             )
 
     def forward(self, e, p):
-        e = self.ln_e(e)
-        p = self.ln_p(p)
+        
         x = self.attn(e, p)
+        
         if self.use_ff:
             x = x + self.mlp(self.ln_mlp(x))
+        
         return x
 
 class gdGPT(nn.Module):
@@ -97,10 +89,10 @@ class gdGPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
+        self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}D'
         
-        if not config.use_ff:
-            self.name += '_noFF'
+        if config.use_ff:
+            self.name += '_useFF'
         if not config.use_attn:
             self.name += '_noAttn'
         
