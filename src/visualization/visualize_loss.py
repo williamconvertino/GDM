@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 RESULTS_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../results')
 FIGURES_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../figures')
 
-def visualize_loss(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel="Loss", xlim=None, ylim=None):
+def visualize_loss(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel="Loss"):
   
   colors = ['c', 'r', 'g', 'm', 'y', 'k']
   
@@ -14,10 +14,7 @@ def visualize_loss(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel
   plt.xlabel(xlabel)
   plt.ylabel(ylabel)
   
-  if xlim is not None:
-    plt.xlim(0, None)
-  if ylim is not None:
-    plt.ylim(0, None)
+  plt.ylim(0, 9.5)
   
   for i, item in enumerate(args):
     if len(item) == 3:
@@ -35,7 +32,8 @@ def visualize_loss(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel
     x, y = zip(*losses)
     plt.plot(x, y, label=label, color=color)
     
-    for x in range(epoch_len, len(losses), epoch_len):
+    for i in range(epoch_len, len(losses), epoch_len):
+      x = losses[i][0]
       plt.axvline(x=x, color='gray', linestyle='--', linewidth=0.5)
     
   plt.legend()

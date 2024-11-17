@@ -13,7 +13,7 @@ DATASET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../da
 
 class TinyStoriesDataset(IterableDataset):
     
-  def __init__(self, tokenizer, split, context_size, batch_size=512, shuffle_buffer_size=1024):
+  def __init__(self, tokenizer, split, context_size, batch_size=64, shuffle_buffer_size=1024):
   
     if split == 'val':
       split = 'validation'

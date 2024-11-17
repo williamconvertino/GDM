@@ -16,14 +16,13 @@ class GDAttention(nn.Module):
         self.d_embed = config.d_embed
         
         self.qk_diag_values = nn.Parameter(torch.ones(self.n_head, config.context_size + 1))
+        nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
         
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
         
         self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1))
-        
-        nn.init.normal_(self.W_LR, mean=0.0, std=0.001)
-        
+        nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
         
     def forward(self, e, p):
         B, S, D = e.size()
