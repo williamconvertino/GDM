@@ -14,10 +14,15 @@ class GDAttention(nn.Module):
         
         self.n_head = config.n_head
         self.d_embed = config.d_embed
+        self.full_Wqk = config.full_Wqk
         
-        self.qk_diag_values = nn.Parameter(torch.ones(self.n_head, config.context_size + 1))
-        nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
+        if self.full_Wqk:
+            self.W_qk = nn.Linear(self.d_embed, self.d_embed, bias=config.bias)
+        else:
+            self.qk_diag_values = nn.Parameter(torch.ones(self.n_head, config.context_size + 1))
+            nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
         
+            
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
         
@@ -31,12 +36,17 @@ class GDAttention(nn.Module):
         k = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         v = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
         
-        W_q = torch.diag_embed(self.qk_diag_values[:, 1:S+1]).unsqueeze(0)
-        W_k = torch.diag_embed(self.qk_diag_values[:, :S]).unsqueeze(0)
+        if self.full_Wqk:
+            Q = self.W_qk(q)
+            K = self.W_qk(k)
+            V = v
+        else:
+            W_q = torch.diag_embed(self.qk_diag_values[:, 1:S+1]).unsqueeze(0)
+            W_k = torch.diag_embed(self.qk_diag_values[:, :S]).unsqueeze(0)
         
-        Q = W_q @ q
-        K = W_k @ k
-        V = v # No need for a W_v matrix
+            Q = W_q @ q
+            K = W_k @ k
+            V = v # No need for a W_v matrix
         
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
