@@ -105,6 +105,8 @@ class gdGPT(nn.Module):
             self.name += '_noFF'
         if not config.use_attn:
             self.name += '_noAttn'
+        if config.full_Wqk:
+            self.name += '_fullWqk'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
