@@ -14,39 +14,44 @@ class GDAttention(nn.Module):
         
         self.n_head = config.n_head
         self.d_embed = config.d_embed
-        self.full_Wqk = config.full_Wqk
+        self.context_size = config.context_size
         
-        if self.full_Wqk:
-            self.W_qk = nn.Linear(self.d_embed, self.d_embed, bias=config.bias)
-        else:
-            self.qk_diag_values = nn.Parameter(torch.ones(self.n_head, config.context_size + 1))
+        self.WQK_mode = config.WQK_mode
+        self.WV_mode = config.WV_mode
+        self.WO_mode = config.WO_mode
+        
+        if self.WQK_mode == 'full':
+            self.W_qk = nn.Parameter(torch.zeros(1, self.n_head, self.d_embed, self.d_embed))
+            nn.init.normal_(self.W_qk, mean=0.0, std=0.2)
+        elif self.WQK_mode == 'diag':
+            self.qk_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
             nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
-        
             
-        W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(config.context_size)])).unsqueeze(0).unsqueeze(0)
+        W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(self.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
         
-        self.W_LR = nn.Parameter(torch.randn(1, self.n_head, config.context_size, 1))
-        nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
+        self.W_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
+        nn.init.normal_(self.W_LR, mean=0.0, std=0.01)
+        
+        if self.WO_mode == 'proj':
+            self.wo_proj = nn.Linear(self.n_head * self.d_embed, self.d_embed)
         
     def forward(self, e, p):
         B, S, D = e.size()
 
-        q = p[:, 1:, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
-        k = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
-        v = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
-        
-        if self.full_Wqk:
-            Q = self.W_qk(q)
-            K = self.W_qk(k)
-            V = v
-        else:
-            W_q = torch.diag_embed(self.qk_diag_values[:, 1:S+1]).unsqueeze(0)
-            W_k = torch.diag_embed(self.qk_diag_values[:, :S]).unsqueeze(0)
-        
-            Q = W_q @ q
-            K = W_k @ k
-            V = v # No need for a W_v matrix
+        Q = p[:, 1:, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        K = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        V = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
+
+        if self.WQK_mode == 'full':
+            Q = Q @ self.W_qk
+            K = K @ self.W_qk
+            V = V
+        elif self.WQK_mode == 'diag':
+            W_qk = torch.diag_embed(self.qk_diag_values).unsqueeze(0)
+            Q = Q @ W_qk
+            K = K @ W_qk
+            V = V # No need for a W_v matrix
         
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
@@ -58,11 +63,18 @@ class GDAttention(nn.Module):
         attn_weight = F.softmax(attn_weight, dim=-1)
         
         y = attn_weight @ V
-        
+               
         y = self.W_N[:, :, :S, :S] @ y
-        y = y * self.W_LR[:, :, :S, :]
-        y = torch.sum(y, dim=1)
-    
+        y = y * self.W_LR
+        
+        if self.WO_mode == 'proj':
+            y = y.view(B, self.n_head * S, D).reshape(B, S, self.n_head * D)
+            y = self.wo_proj(y)
+            y = y.view(B, S, D)
+            print(y)
+        else:
+            y = torch.sum(y, dim=1)
+        
         return y
 
 class Block(nn.Module):
@@ -101,12 +113,9 @@ class gdGPT(nn.Module):
         # self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}D'
         self.name = f'gdGPT'
         
-        if not config.use_ff:
-            self.name += '_noFF'
-        if not config.use_attn:
-            self.name += '_noAttn'
-        if config.full_Wqk:
-            self.name += '_fullWqk'
+        self.name += f'_WQK={config.WQK_mode}'
+        self.name += f'_WV={config.WV_mode}'
+        self.name += f'_WO={config.WO_mode}'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
