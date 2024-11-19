@@ -8,7 +8,7 @@ from torch.nn import functional as F
 from src.util import get_time_remaining
 from src.visualization import visualize_loss
 
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-2
 
 MODEL_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../models')
