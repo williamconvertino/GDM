@@ -69,8 +69,9 @@ class GDAttention(nn.Module):
         y = self.W_N[:, :, :S, :S] @ y
         # y = y * self.W_LR
         
-        y = y.view(B, S, self.n_head * D)
-        y = self.W_o(y)
+        # y = y.view(B, S, self.n_head * D)
+        # y = self.W_o(y)
+        y = torch.sum(y, dim=1)
         
         return y
 
