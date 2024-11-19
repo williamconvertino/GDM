@@ -32,11 +32,15 @@ class GDAttention(nn.Module):
             self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))    
             nn.init.normal_(self.W_q_diag_values, mean=0.0, std=0.2)
             nn.init.normal_(self.W_k_diag_values, mean=0.0, std=0.2)
-        
+        elif self.W_qk_mode == 'diag_shared':
+            self.W_qk_diag_values = nn.Parameter(torch.zeros(self.d_embed))
+            nn.init.normal_(self.W_qk_diag_values, mean=0.0, std=0.2)
         elif self.W_qk_mode == 'linear':
             self.W_q = nn.Linear(self.d_embed, self.d_embed, bias=False)
             self.W_k = nn.Linear(self.d_embed, self.d_embed, bias=False)
-        
+        elif self.W_qk_mode == 'linear_shared':
+            self.W_qk = nn.Linear(self.d_embed, self.d_embed, bias=False)
+            
         if self.W_v_mode == 'diag':
             self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
             nn.init.normal_(self.W_v_diag_values, mean=0.0, std=0.2)
@@ -70,17 +74,25 @@ class GDAttention(nn.Module):
         if self.W_qk_mode == 'diag':
             W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0).unsqueeze(0)
             W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0).unsqueeze(0)
-            W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
-            
             Q = Q @ W_q
             K = K @ W_k
-            V = V @ W_v
-        
+        elif self.W_qk_mode == 'diag_shared':
+            W_qk = torch.diag_embed(self.W_qk_diag_values).unsqueeze(0).unsqueeze(0)
+            Q = Q @ W_qk
+            K = K @ W_qk
         elif self.W_qk_mode == 'linear':
             Q = self.W_q(Q)
             K = self.W_k(K)
+        elif self.W_qk_mode == 'linear_shared':
+            Q = self.W_qk(Q)
+            K = self.W_qk(K)
+
+        if self.W_v_mode == 'diag':
+            W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
+            V = V @ W_v
+        elif self.W_v_mode == 'linear':
             V = self.W_v(V)
-    
+            
         # Attention
     
         mask = torch.tril(torch.ones(S, S, device=e.device))
