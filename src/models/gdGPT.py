@@ -12,29 +12,51 @@ class GDAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         
+        # Config
+        
         self.n_head = config.n_head
         self.d_embed = config.d_embed
         self.context_size = config.context_size
+        
+        self.W_qk_mode = config.W_qk_mode
+        self.W_v_mode = config.W_v_mode
+        self.W_o_mode = config.W_o_mode
+        
+        self.use_W_LR = config.use_W_LR
+        self.use_W_N = config.use_W_N
+        
+        # W_q, W_k, W_v
+        
+        if self.W_qk_mode == 'diag':
+            self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+            self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))    
+            nn.init.normal_(self.W_q_diag_values, mean=0.0, std=0.2)
+            nn.init.normal_(self.W_k_diag_values, mean=0.0, std=0.2)
+        
+        elif self.W_qk_mode == 'linear':
+            self.W_q = nn.Linear(self.d_embed, self.d_embed, bias=False)
+            self.W_k = nn.Linear(self.d_embed, self.d_embed, bias=False)
+        
+        if self.W_v_mode == 'diag':
+            self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+            nn.init.normal_(self.W_v_diag_values, mean=0.0, std=0.2)
+        elif self.W_v_mode == 'linear':
+            self.W_v = nn.Linear(self.d_embed, self.d_embed, bias=False)
+        
+        # W_N, W_LR
+        
+        if self.use_W_N:
+            W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(self.context_size)])).unsqueeze(0).unsqueeze(0)
+            self.register_buffer('W_N', W_N)
             
-        # self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
-        # self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
-        # self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+        if self.use_W_LR:
+            self.W_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
+            nn.init.normal_(self.W_LR, mean=0.0, std=0.01)
         
-        # nn.init.normal_(self.W_q_diag_values, mean=0.0, std=0.2)
-        # nn.init.normal_(self.W_k_diag_values, mean=0.0, std=0.2)
-        # nn.init.normal_(self.W_v_diag_values, mean=0.0, std=0.2)
+        # W_o
         
-        self.W_q = nn.Linear(self.d_embed, self.d_embed, bias=False)
-        self.W_k = nn.Linear(self.d_embed, self.d_embed, bias=False)
-        self.W_v = nn.Linear(self.d_embed, self.d_embed, bias=False)
-            
-        W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(self.context_size)])).unsqueeze(0).unsqueeze(0)
-        self.register_buffer('W_N', W_N)
-        
-        self.W_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
-        nn.init.normal_(self.W_LR, mean=0.0, std=0.01)
-        
-        self.W_o = nn.Linear(self.n_head * self.d_embed, self.d_embed, bias=False)
+        if self.W_o_mode == 'proj':
+            self.W_o = nn.Linear(self.n_head * self.d_embed, self.d_embed, bias=False)
         
     def forward(self, e, p):
         B, S, D = e.size()
@@ -43,17 +65,23 @@ class GDAttention(nn.Module):
         K = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         V = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
 
-        # W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0).unsqueeze(0)
-        # W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0).unsqueeze(0)
-        # W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
-        
-        # Q = Q @ W_q
-        # K = K @ W_k
-        # V = V @ W_v
+        # W_q, W_k, W_v
 
-        Q = self.W_q(Q)
-        K = self.W_k(K)
-        V = self.W_v(V)
+        if self.W_qk_mode == 'diag':
+            W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0).unsqueeze(0)
+            W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0).unsqueeze(0)
+            W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
+            
+            Q = Q @ W_q
+            K = K @ W_k
+            V = V @ W_v
+        
+        elif self.W_qk_mode == 'linear':
+            Q = self.W_q(Q)
+            K = self.W_k(K)
+            V = self.W_v(V)
+    
+        # Attention
     
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
@@ -65,13 +93,21 @@ class GDAttention(nn.Module):
         attn_weight = F.softmax(attn_weight, dim=-1)
         
         y = attn_weight @ V
-               
-        y = self.W_N[:, :, :S, :S] @ y
-        y = y * self.W_LR
         
-        # y = y.view(B, S, self.n_head * D)
-        # y = self.W_o(y)
-        y = torch.sum(y, dim=1)
+        # Learning Rate and 1/N Terms
+        
+        if self.use_W_N:
+            y = self.W_N[:, :, :S, :S] @ y
+        if self.use_W_LR:
+            y = y * self.W_LR
+        
+        # Combining Heads
+        
+        if self.W_o_mode == 'proj':
+            y = y.view(B, S, self.n_head * D)
+            y = self.W_o(y)
+        else:
+            y = torch.sum(y, dim=1)
         
         return y
 
@@ -90,7 +126,7 @@ class gdGPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'gdGPT'
+        self.name = f'gdGPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(W_qk={config.W_qk_mode})_(W_v={config.W_v_mode})_(W_o={config.W_o_mode})_(W_LR={config.use_W_LR})_(W_N={config.use_W_N})'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
