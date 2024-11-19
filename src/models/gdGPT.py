@@ -127,10 +127,24 @@ class Block(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        
+        self.use_ff = config.use_ff
+        
         self.attn = GDAttention(config)
 
+        if self.use_ff:
+            self.mlp = nn.Sequential(
+                nn.Linear(config.d_embed, config.d_ff, bias=config.bias),
+                nn.GELU(),
+                nn.Linear(config.d_ff, config.d_embed, bias=config.bias),
+                nn.Dropout(config.dropout)
+            )
+
     def forward(self, e, p):
-        return self.attn(e, p)
+        x = self.attn(e, p)
+        if self.use_ff:
+            x = x + self.mlp(x)
+        return x
         
 class gdGPT(nn.Module):
 
@@ -138,7 +152,7 @@ class gdGPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'gdGPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(FF={config.d_ff})_(W_qk={config.W_qk_mode})_(W_v={config.W_v_mode})_(W_o={config.W_o_mode})_(W_LR={config.use_W_LR})_(W_N={config.use_W_N})'
+        self.name = f'gdGPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(use_ff={config.use_ff})_(W_qk={config.W_qk_mode})_(W_v={config.W_v_mode})_(W_o={config.W_o_mode})_(W_LR={config.use_W_LR})_(W_N={config.use_W_N})'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)

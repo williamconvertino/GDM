@@ -77,7 +77,7 @@ class GPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'DEFAULT_GPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(FF={config.d_ff})'
+        self.name = f'DEFAULT_GPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(FF={config.d_ff})_(use_ff={config.use_ff})'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
