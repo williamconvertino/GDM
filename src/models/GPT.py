@@ -65,7 +65,8 @@ class Block(nn.Module):
             )
 
     def forward(self, x):
-        x = x + self.attn(self.ln_attn(x))
+        if self.use_attn:
+            x = x + self.attn(self.ln_attn(x))
         if self.use_ff:
             x = x + self.mlp(self.ln_mlp(x))
         return x
@@ -76,12 +77,8 @@ class GPT(nn.Module):
         super().__init__()
         
         self.config = config
-        # self.name = f'GPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}E'
-        self.name = f'GPT'
-
-        if config.use_ff:
-            self.name += '_FF'
-
+        self.name = f'DEFAULT_GPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(FF={config.d_ff})'
+        
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
         self.wpe = nn.Embedding(config.context_size, config.d_embed)

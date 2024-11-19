@@ -126,7 +126,7 @@ class gdGPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'gdGPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(W_qk={config.W_qk_mode})_(W_v={config.W_v_mode})_(W_o={config.W_o_mode})_(W_LR={config.use_W_LR})_(W_N={config.use_W_N})'
+        self.name = f'gdGPT_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(FF={config.d_ff})_(W_qk={config.W_qk_mode})_(W_v={config.W_v_mode})_(W_o={config.W_o_mode})_(W_LR={config.use_W_LR})_(W_N={config.use_W_N})'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
