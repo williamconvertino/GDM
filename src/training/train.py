@@ -41,7 +41,6 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
     'losses': []
   }
   record_steps = len(train_dataset) // 100 # Only validates/saves model losses 100 times (for performance/memory reasons)
-  model_dir = os.path.join(MODEL_BASE_DIR, model.name)
   
   # Training Loop
   print(f"Training {model.name} [Device: {device}]")
@@ -89,9 +88,9 @@ def train_model(model, train_dataset, val_dataset, num_epochs=10, starting_epoch
     print(f"\nEpoch {epoch}/{num_epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
     
     os.makedirs(RESULTS_BASE_DIR, exist_ok=True)
-    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(MODEL_BASE_DIR, exist_ok=True)
     
-    torch.save(model.state_dict(), f'{model_dir}/{model.name}_epoch_{epoch}.pt')
+    torch.save(model.state_dict(), f'{MODEL_BASE_DIR}/{model.name}_epoch_{epoch}.pt')
     
     with open(f'{RESULTS_BASE_DIR}/{model.name}_train_results.json', 'w') as f:
       json.dump(train_results, f)

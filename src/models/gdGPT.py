@@ -16,13 +16,17 @@ class GDAttention(nn.Module):
         self.d_embed = config.d_embed
         self.context_size = config.context_size
             
-        self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
-        self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
-        self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+        # self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+        # self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+        # self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
         
-        nn.init.normal_(self.W_q_diag_values, mean=0.0, std=0.2)
-        nn.init.normal_(self.W_k_diag_values, mean=0.0, std=0.2)
-        nn.init.normal_(self.W_v_diag_values, mean=0.0, std=0.2)
+        # nn.init.normal_(self.W_q_diag_values, mean=0.0, std=0.2)
+        # nn.init.normal_(self.W_k_diag_values, mean=0.0, std=0.2)
+        # nn.init.normal_(self.W_v_diag_values, mean=0.0, std=0.2)
+        
+        self.W_q = nn.Linear(self.d_embed, self.d_embed, bias=False)
+        self.W_k = nn.Linear(self.d_embed, self.d_embed, bias=False)
+        self.W_v = nn.Linear(self.d_embed, self.d_embed, bias=False)
             
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(self.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
@@ -39,14 +43,17 @@ class GDAttention(nn.Module):
         K = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         V = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
 
+        # W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0).unsqueeze(0)
+        # W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0).unsqueeze(0)
+        # W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
         
-        W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0).unsqueeze(0)
-        W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0).unsqueeze(0)
-        W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
-        
-        Q = Q @ W_q
-        K = K @ W_k
-        V = V @ W_v
+        # Q = Q @ W_q
+        # K = K @ W_k
+        # V = V @ W_v
+
+        Q = self.W_q(Q)
+        K = self.W_k(K)
+        V = self.W_v(V)
     
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
