@@ -31,8 +31,8 @@ class GDAttention(nn.Module):
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(self.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
         
-        # self.W_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
-        # nn.init.normal_(self.W_LR, mean=0.0, std=0.01)
+        self.W_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
+        nn.init.normal_(self.W_LR, mean=0.0, std=0.01)
         
         self.W_o = nn.Linear(self.n_head * self.d_embed, self.d_embed, bias=False)
         
@@ -67,7 +67,7 @@ class GDAttention(nn.Module):
         y = attn_weight @ V
                
         y = self.W_N[:, :, :S, :S] @ y
-        # y = y * self.W_LR
+        y = y * self.W_LR
         
         # y = y.view(B, S, self.n_head * D)
         # y = self.W_o(y)
