@@ -15,17 +15,14 @@ class GDAttention(nn.Module):
         self.n_head = config.n_head
         self.d_embed = config.d_embed
         self.context_size = config.context_size
+            
+        self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+        self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
+        self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
         
-        self.WQK_mode = config.WQK_mode
-        self.WV_mode = config.WV_mode
-        self.WO_mode = config.WO_mode
-        
-        if self.WQK_mode == 'full':
-            self.W_qk = nn.Parameter(torch.zeros(1, self.n_head, self.d_embed, self.d_embed))
-            nn.init.normal_(self.W_qk, mean=0.0, std=0.2)
-        elif self.WQK_mode == 'diag':
-            self.qk_diag_values = nn.Parameter(torch.zeros(self.n_head, self.d_embed))
-            nn.init.normal_(self.qk_diag_values, mean=0.0, std=0.2)
+        nn.init.normal_(self.W_q_diag_values, mean=0.0, std=0.2)
+        nn.init.normal_(self.W_k_diag_values, mean=0.0, std=0.2)
+        nn.init.normal_(self.W_v_diag_values, mean=0.0, std=0.2)
             
         W_N = torch.diag_embed(torch.tensor([1.0 / (i + 1) for i in range(self.context_size)])).unsqueeze(0).unsqueeze(0)
         self.register_buffer('W_N', W_N)
@@ -33,8 +30,7 @@ class GDAttention(nn.Module):
         self.W_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
         nn.init.normal_(self.W_LR, mean=0.0, std=0.01)
         
-        if self.WO_mode == 'proj':
-            self.wo_proj = nn.Linear(self.n_head * self.d_embed, self.d_embed)
+        self.W_o = nn.Linear(self.n_head * self.d_embed, self.d_embed, bias=False)
         
     def forward(self, e, p):
         B, S, D = e.size()
@@ -43,16 +39,15 @@ class GDAttention(nn.Module):
         K = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         V = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
 
-        if self.WQK_mode == 'full':
-            Q = Q @ self.W_qk
-            K = K @ self.W_qk
-            V = V
-        elif self.WQK_mode == 'diag':
-            W_qk = torch.diag_embed(self.qk_diag_values).unsqueeze(0)
-            Q = Q @ W_qk
-            K = K @ W_qk
-            V = V # No need for a W_v matrix
         
+        W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0).unsqueeze(0)
+        W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0).unsqueeze(0)
+        W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0).unsqueeze(0)
+        
+        Q = Q @ W_q
+        K = K @ W_k
+        V = V @ W_v
+    
         mask = torch.tril(torch.ones(S, S, device=e.device))
         mask = mask.bool()
         
@@ -67,13 +62,8 @@ class GDAttention(nn.Module):
         y = self.W_N[:, :, :S, :S] @ y
         y = y * self.W_LR
         
-        if self.WO_mode == 'proj':
-            y = y.view(B, self.n_head * S, D).reshape(B, S, self.n_head * D)
-            y = self.wo_proj(y)
-            y = y.view(B, S, D)
-            print(y)
-        else:
-            y = torch.sum(y, dim=1)
+        y = y.view(B, S, self.n_head * D)
+        y = self.W_o(y)
         
         return y
 
@@ -81,41 +71,18 @@ class Block(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        
-        self.use_ff = config.use_ff
-        
         self.attn = GDAttention(config)
-        
-        if self.use_ff:
-            self.ln_mlp = nn.LayerNorm(config.d_embed, bias=config.bias)
-            self.mlp = nn.Sequential(
-                nn.Linear(config.d_embed, config.d_ff, bias=config.bias),
-                nn.GELU(),
-                nn.Linear(config.d_ff, config.d_embed, bias=config.bias),
-                nn.Dropout(config.dropout)
-            )
 
     def forward(self, e, p):
+        return self.attn(e, p)
         
-        x = self.attn(e, p)
-        
-        if self.use_ff:
-            x = x + self.mlp(self.ln_mlp(x))
-        
-        return x
-
 class gdGPT(nn.Module):
 
     def __init__(self, config):
         super().__init__()
         
         self.config = config
-        # self.name = f'gdGPT_{config.n_head}H_{config.n_layer}L_{config.d_embed}D'
         self.name = f'gdGPT'
-        
-        self.name += f'_WQK={config.WQK_mode}'
-        self.name += f'_WV={config.WV_mode}'
-        self.name += f'_WO={config.WO_mode}'
         
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
@@ -129,7 +96,7 @@ class gdGPT(nn.Module):
         # Weight initialization
         self.apply(self._init_weights)
         for pn, p in self.named_parameters():
-            if pn.endswith('c_proj.weight'):
+            if pn.endswith('c_proj.weight') or pn.endswith('W_o.weight'):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
         print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
