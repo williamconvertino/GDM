@@ -1,6 +1,7 @@
 # Data folders
 data/
 models/
+!src/models
 results/
 figures/
 
