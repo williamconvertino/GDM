@@ -125,7 +125,9 @@ class GDAttention(nn.Module):
         else:
             y = torch.sum(y, dim=1)
         
-        y += torch.sum(e - E_wte, dim=1)
+        b = e - E_wte
+        b = self.W_N[:, :, :S, :S] @ b
+        y += torch.sum(b, dim=1)
         
         return y
 
