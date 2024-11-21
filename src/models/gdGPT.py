@@ -125,6 +125,8 @@ class GDAttention(nn.Module):
         else:
             y = torch.sum(y, dim=1)
         
+        y += torch.sum(e - E_wte, dim=1)
+        
         return y
 
 class Block(nn.Module):

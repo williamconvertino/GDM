@@ -4,18 +4,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-class GDStep(nn.Module):
-    
-    def __init__(self, W_e):
-        super().__init__()
-        
-        self.W_e = W_e
-
-    def forward(self, e, p, f_k):
-        
-        x_i = p
-        print(x_i.shape)
-
 class PGD(nn.Module):
 
     def __init__(self, config):
@@ -24,11 +12,22 @@ class PGD(nn.Module):
         self.config = config
         self.name = f'PGD_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)'
         
+        # Params
+        self.n_head = config.n_head
+        self.d_embed = config.d_embed
+        self.n_layer = config.n_layer
+        
         # Components
         self.W_e = nn.Embedding(config.vocab_size, config.d_embed)
         self.W_p = nn.Embedding(config.context_size + 1, config.d_embed)
         
-        self.steps = nn.ModuleList([GDStep(self.W_e) for _ in range(config.n_layer)])
+        self.W_K_i = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
+        self.W_K_j = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
+        
+        nn.init.normal_(self.W_e.weight, std=0.02)
+        nn.init.normal_(self.W_p.weight, std=0.02)
+        nn.init.normal_(self.W_K_i, std=0.02)
+        nn.init.normal_(self.W_K_j, std=0.02)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -42,6 +41,12 @@ class PGD(nn.Module):
             n_params -= self.W_e.weight.numel()
         return n_params
 
+    def gd_step(self, W_y_i, f_k, K):
+
+        exp_f_k_W_e = torch.exp(f_k @ self.W_e.weight.transpose(-2, -1)) # shape (B, S + 1, vocab_size)
+        E_W_c = (exp_f_k_W_e @ self.W_e.weight) / torch.sum(exp_f_k_W_e, dim=-1).unsqueeze(-1) # shape (B, S + 1, d_embed)
+        print(E_W_c.shape)       
+             
     def forward(self, idx, targets=None):
         
         device = idx.device
@@ -54,13 +59,23 @@ class PGD(nn.Module):
 
         e = self.W_e(idx) # token embeddings of shape (B, S, d_embed)
         p = self.W_p(pos).repeat(B, 1, 1) # position embeddings of shape (B, S + 1, d_embed)
+
+        W_y_i = e
     
+        x_i = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S, d_embed)
+        x_j = p[:, :, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
+        
+        x_i = x_i @ self.W_K_i
+        x_j = x_j @ self.W_K_j
+        
+        K = x_j @ x_i.transpose(-2, -1) # shape (B, n_head, S + 1, S)
+
         f_k = torch.zeros_like(e) # initial state of the model
-    
+        
         # Steps
     
-        for step in self.steps:
-            f_k = step(e, p, f_k)
+        for _ in range(self.n_layer):
+            f_k = self.gd_step(W_y_i, f_k, K)
 
         # LM Head Outputs + Loss
 
