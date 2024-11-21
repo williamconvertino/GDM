@@ -73,7 +73,6 @@ class GDAttention(nn.Module):
         K = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         V = (e - E_wte).unsqueeze(1).repeat(1, self.n_head, 1, 1)
 
-        print(V.shape)
         # W_q, W_k, W_v
 
         if self.W_qk_mode == 'diag':
