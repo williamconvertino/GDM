@@ -9,7 +9,7 @@ from torch.nn import functional as F
 
 class GDAttention(nn.Module):
 
-    def __init__(self, config):
+    def __init__(self, config, wte):
         super().__init__()
         
         # Config
@@ -24,6 +24,8 @@ class GDAttention(nn.Module):
         
         self.use_W_LR = config.use_W_LR
         self.use_W_N = config.use_W_N
+        
+        self.wte = wte
         
         # W_q, W_k, W_v
         
@@ -65,10 +67,13 @@ class GDAttention(nn.Module):
     def forward(self, e, p):
         B, S, D = e.size()
 
+        E_wte = torch.sum(self.wte.weight, dim=0) / self.wte.weight.size(0)
+
         Q = p[:, 1:, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
         K = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1)
-        V = e.unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        V = (e - E_wte).unsqueeze(1).repeat(1, self.n_head, 1, 1)
 
+        print(V.shape)
         # W_q, W_k, W_v
 
         if self.W_qk_mode == 'diag':
@@ -125,12 +130,12 @@ class GDAttention(nn.Module):
 
 class Block(nn.Module):
 
-    def __init__(self, config):
+    def __init__(self, config, wte):
         super().__init__()
         
         self.use_ff = config.use_ff
         
-        self.attn = GDAttention(config)
+        self.attn = GDAttention(config, wte)
 
         if self.use_ff:
             self.mlp = nn.Sequential(
@@ -157,7 +162,7 @@ class gdGPT(nn.Module):
         # Transformer Components
         self.wte = nn.Embedding(config.vocab_size, config.d_embed)
         self.wpe = nn.Embedding(config.context_size + 1, config.d_embed) # Need a positional vector for the N+1th token
-        self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
+        self.blocks = nn.ModuleList([Block(config, self.wte) for _ in range(config.n_layer)])
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -183,7 +188,7 @@ class gdGPT(nn.Module):
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.2)
 
     def forward(self, idx, targets=None):
         
