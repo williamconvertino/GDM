@@ -22,12 +22,12 @@ class PGD(nn.Module):
         self.W_e = nn.Embedding(config.vocab_size, config.d_embed)
         self.W_p = nn.Embedding(config.context_size + 1, config.d_embed)
         
-        # self.W_K_i = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
-        # self.W_K_j = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
-        # self.W_V = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
-        self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
-        self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
-        self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
+        self.W_k = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
+        self.W_q = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
+        self.W_v = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
+        # self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
+        # self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
+        # self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
         
         self.A_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
         self.B_LR = nn.Parameter(torch.zeros(1, 1, 1))
@@ -36,12 +36,12 @@ class PGD(nn.Module):
         nn.init.normal_(self.W_p.weight, std=0.02)
         nn.init.normal_(self.A_LR, std=0.02)
         nn.init.normal_(self.B_LR, std=0.02)
-        nn.init.normal_(self.W_q_diag_values, std=0.02)
-        nn.init.normal_(self.W_k_diag_values, std=0.02)
-        nn.init.normal_(self.W_v_diag_values, std=0.02)
-        # nn.init.normal_(self.W_K_i, std=0.02)
-        # nn.init.normal_(self.W_K_j, std=0.02)
-        # nn.init.normal_(self.W_V, std=0.02)
+        # nn.init.normal_(self.W_q_diag_values, std=0.02)
+        # nn.init.normal_(self.W_k_diag_values, std=0.02)
+        # nn.init.normal_(self.W_v_diag_values, std=0.02)
+        nn.init.normal_(self.W_k, std=0.02)
+        nn.init.normal_(self.W_q, std=0.02)
+        nn.init.normal_(self.W_v, std=0.02)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -64,9 +64,9 @@ class PGD(nn.Module):
         
         diff = W_y_i - E_W_c
         
-        W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0)
+        # W_v = torch.diag_embed(self.W_v_diag_values).unsqueeze(0)
         
-        V = diff.unsqueeze(1).repeat(1, self.n_head, 1, 1) @ W_v
+        V = diff.unsqueeze(1).repeat(1, self.n_head, 1, 1) @ self.W_v
         delta_A = K @ V # shape (B, n_head, S + 1, d_embed)
         
         delta_A = delta_A * self.A_LR
@@ -95,11 +95,13 @@ class PGD(nn.Module):
         x_i = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S, d_embed)
         x_j = p[:, :, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
         
-        W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0)
-        W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0)
+        # W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0)
+        # W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0)
         
-        x_i = x_i @ W_k
-        x_j = x_j @ W_q
+        # x_i = x_i @ W_k
+        # x_j = x_j @ W_q
+        x_i = x_i @ self.W_k
+        x_j = x_j @ self.W_q
         
         K = x_j @ x_i.transpose(-2, -1) # shape (B, n_head, S + 1, S)
 
