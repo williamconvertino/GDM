@@ -35,6 +35,7 @@ class PGD(nn.Module):
         nn.init.normal_(self.W_K_j, std=0.02)
         nn.init.normal_(self.A_LR, std=0.02)
         nn.init.normal_(self.B_LR, std=0.02)
+        nn.init.normal_(self.W_V, std=0.02)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
