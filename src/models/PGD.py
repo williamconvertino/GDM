@@ -57,8 +57,8 @@ class PGD(nn.Module):
         E_W_c = (exp_f_k_W_e @ self.W_e.weight) / torch.sum(exp_f_k_W_e, dim=-1).unsqueeze(-1) # shape (B, S + 1, d_embed)
         
         diff = W_y_i - E_W_c
-        V = diff @ self.W_V # shape (B, S + 1, d_embed)
-        delta_A = K @ V.unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
+        V = diff.unsqueeze(1).repeat(1, self.n_head, 1, 1) @ self.W_V
+        delta_A = K @ V # shape (B, n_head, S + 1, d_embed)
         
         delta_A = delta_A * self.A_LR
         delta_B = (diff * self.B_LR).unsqueeze(1)
