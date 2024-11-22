@@ -15,6 +15,7 @@ class PGD(nn.Module):
         # Params
         self.n_head = config.n_head
         self.d_embed = config.d_embed
+        self.context_size = config.context_size
         self.n_layer = config.n_layer
         
         # Components
@@ -24,10 +25,15 @@ class PGD(nn.Module):
         self.W_K_i = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
         self.W_K_j = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
         
+        self.A_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
+        self.B_LR = nn.Parameter(torch.zeros(1, 1, 1))
+        
         nn.init.normal_(self.W_e.weight, std=0.02)
         nn.init.normal_(self.W_p.weight, std=0.02)
         nn.init.normal_(self.W_K_i, std=0.02)
         nn.init.normal_(self.W_K_j, std=0.02)
+        nn.init.normal_(self.A_LR, std=0.02)
+        nn.init.normal_(self.B_LR, std=0.02)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -42,10 +48,22 @@ class PGD(nn.Module):
         return n_params
 
     def gd_step(self, W_y_i, f_k, K):
-
-        exp_f_k_W_e = torch.exp(f_k @ self.W_e.weight.transpose(-2, -1)) # shape (B, S + 1, vocab_size)
+        
+        N = K.size(-1)
+        
+        exp_f_k_W_e = torch.exp(f_k[:, :N, :] @ self.W_e.weight.transpose(-2, -1)) # shape (B, S + 1, vocab_size)
         E_W_c = (exp_f_k_W_e @ self.W_e.weight) / torch.sum(exp_f_k_W_e, dim=-1).unsqueeze(-1) # shape (B, S + 1, d_embed)
-        print(E_W_c.shape)       
+        
+        V = W_y_i - E_W_c
+        delta_A = K @ V.unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
+        
+        delta_A = delta_A * self.A_LR
+        delta_B = (V * self.B_LR).unsqueeze(1)
+
+        delta_f_k = delta_A.sum(dim=1) + delta_B.sum(dim=2) # shape (B, S + 1, d_embed)
+        delta_f_k = delta_f_k / N
+        
+        return f_k + delta_f_k
              
     def forward(self, idx, targets=None):
         
@@ -70,21 +88,24 @@ class PGD(nn.Module):
         
         K = x_j @ x_i.transpose(-2, -1) # shape (B, n_head, S + 1, S)
 
-        f_k = torch.zeros_like(e) # initial state of the model
+        f_k = torch.zeros_like(p) # initial state of the model
         
         # Steps
     
         for _ in range(self.n_layer):
             f_k = self.gd_step(W_y_i, f_k, K)
 
+        gd_output = f_k[:, -1, :]
+
         # LM Head Outputs + Loss
 
         if targets is not None:
-            logits = self.lm_head(x)
+            logits = self.lm_head(gd_output)
+            targets = targets[:, -1]
             targets = targets.contiguous()
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         else:
-            logits = self.lm_head(f_k[:, [-1], :])
+            logits = self.lm_head(gd_output)
             loss = None
 
         return logits, loss
