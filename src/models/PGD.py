@@ -58,8 +58,9 @@ class PGD(nn.Module):
     def gd_step(self, W_y_i, f_k, K):
         
         N = K.size(-1)
-        
-        exp_f_k_W_e = torch.exp(f_k[:, :N, :] @ self.W_e.weight.transpose(-2, -1)) # shape (B, S + 1, vocab_size)
+        temp = f_k[:, :N, :] @ self.W_e.weight.transpose(-2, -1)
+        torch.clamp(temp, -10, 10)
+        exp_f_k_W_e = torch.exp(temp) # shape (B, S + 1, vocab_size)
         E_W_c = (exp_f_k_W_e @ self.W_e.weight) / (torch.sum(exp_f_k_W_e, dim=-1).unsqueeze(-1) + 1e-8) # shape (B, S + 1, d_embed)
         
         diff = W_y_i - E_W_c
