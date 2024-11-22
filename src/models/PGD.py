@@ -24,6 +24,7 @@ class PGD(nn.Module):
         
         self.W_K_i = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
         self.W_K_j = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
+        self.W_V = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
         
         self.A_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
         self.B_LR = nn.Parameter(torch.zeros(1, 1, 1))
@@ -54,11 +55,12 @@ class PGD(nn.Module):
         exp_f_k_W_e = torch.exp(f_k[:, :N, :] @ self.W_e.weight.transpose(-2, -1)) # shape (B, S + 1, vocab_size)
         E_W_c = (exp_f_k_W_e @ self.W_e.weight) / torch.sum(exp_f_k_W_e, dim=-1).unsqueeze(-1) # shape (B, S + 1, d_embed)
         
-        V = W_y_i - E_W_c
+        diff = W_y_i - E_W_c
+        V = diff @ self.W_V # shape (B, S + 1, d_embed)
         delta_A = K @ V.unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
         
         delta_A = delta_A * self.A_LR
-        delta_B = (V * self.B_LR).unsqueeze(1)
+        delta_B = (diff * self.B_LR).unsqueeze(1)
 
         delta_f_k = delta_A.sum(dim=1) + delta_B.sum(dim=2) # shape (B, S + 1, d_embed)
         delta_f_k = delta_f_k / N
