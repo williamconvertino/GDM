@@ -130,11 +130,9 @@ class GPT(nn.Module):
         x = self.ln_f(x)
 
         if targets is not None:
+            x = x[:, -1, :]
             logits = self.lm_head(x)
-            print(logits.shape)
-            print(targets.shape)
             targets = targets[:, -1]
-            print(targets.shape)
             targets = targets.contiguous()
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         else:
