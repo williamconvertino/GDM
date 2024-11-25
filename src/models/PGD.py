@@ -115,9 +115,9 @@ class PGD(nn.Module):
         elif self.kernel_function == 'softmax':
             K = F.softmax(x_j @ x_i.transpose(-2, -1), dim=-1) # shape (B, n_head, S + 1, S)
         elif self.kernel_function == 'rbf':
-            K = torch.exp(-self.gamma * torch.norm(x_j.unsqueeze(-2) - x_i.unsqueeze(-3), dim=-1)) # shape (B, n_head, S + 1, S)
+            K = torch.exp(-self.gamma * torch.norm(x_j - x_i, dim=-1)) # shape (B, n_head, S + 1, S)
         elif self.kernel_function == 'laplacian':
-            K = torch.exp(-self.gamma * torch.norm(x_j.unsqueeze(-2) - x_i.unsqueeze(-3), dim=-1, p=1))
+            K = torch.exp(-self.gamma * torch.norm(x_j - x_i, dim=-1, p=1))
 
         f_k = torch.zeros_like(p) # initial state of the model
         
