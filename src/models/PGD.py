@@ -17,6 +17,11 @@ class PGD(nn.Module):
         self.d_embed = config.d_embed
         self.context_size = config.context_size
         self.n_layer = config.n_layer
+        self.kernel_function = config.kernel_function
+        
+        if self.kernel_function == 'rbf' or self.kernel_function == 'laplacian':
+            self.gamma = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
+            nn.init.constant_(self.gamma, 1.0)
         
         # Components
         self.W_e = nn.Embedding(config.vocab_size, config.d_embed)
@@ -105,7 +110,15 @@ class PGD(nn.Module):
         x_i = x_i @ self.W_k
         x_j = x_j @ self.W_q
         
-        K = x_j @ x_i.transpose(-2, -1) # shape (B, n_head, S + 1, S)
+        if self.kernel_function == 'linear':
+            K = x_j @ x_i.transpose(-2, -1) # shape (B, n_head, S + 1, S)
+        elif self.kernel_function == 'softmax':
+            K = F.softmax(x_j @ x_i.transpose(-2, -1), dim=-1) # shape (B, n_head, S + 1, S)
+        elif self.kernel_function == 'rbf':
+            K = torch.exp(-self.gamma * torch.norm(x_j.unsqueeze(-2) - x_i.unsqueeze(-3), dim=-1)) # shape (B, n_head, S + 1, S)
+        elif self.kernel_function == 'laplacian':
+            K = torch.exp(-self.gamma * torch.norm(x_j.unsqueeze(-2) - x_i.unsqueeze(-3), dim=-1, p=1))
+            
 
         f_k = torch.zeros_like(p) # initial state of the model
         
