@@ -110,7 +110,8 @@ class PGD(nn.Module):
             dist = torch.cdist(x_j, x_i, p=1)
             K = torch.exp(-self.gamma * dist)
             
-        K = K[:, :, 1:, :]
+        K = K[:, 1:, :, :]
+        
         # K = K / (K.sum(dim=-1).unsqueeze(-1) + 1e-8)
             
         f_k = torch.zeros_like(p) # initial state of the model
