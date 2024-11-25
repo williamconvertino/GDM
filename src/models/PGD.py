@@ -30,18 +30,13 @@ class PGD(nn.Module):
         self.W_k = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
         self.W_q = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
         self.W_v = nn.Parameter(torch.zeros(1, self.n_head, config.d_embed, config.d_embed))
-        # self.W_q_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
-        # self.W_k_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
-        # self.W_v_diag_values = nn.Parameter(torch.zeros(self.n_head, config.d_embed))
-        
+
         self.A_LR = nn.Parameter(torch.zeros(1, self.n_head, 1, 1))
         self.B_LR = nn.Parameter(torch.zeros(1, 1, 1))
         
         nn.init.normal_(self.W_e.weight, std=0.02)
         nn.init.normal_(self.W_p.weight, std=0.02)
-        # nn.init.normal_(self.W_q_diag_values, std=0.02)
-        # nn.init.normal_(self.W_k_diag_values, std=0.02)
-        # nn.init.normal_(self.W_v_diag_values, std=0.02)
+
         nn.init.normal_(self.W_k, std=0.02)
         nn.init.normal_(self.W_q, std=0.02)
         nn.init.normal_(self.W_v, std=0.02)
@@ -99,31 +94,24 @@ class PGD(nn.Module):
 
         W_y_i = e
     
-        x_i = p[:, :-1, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S, d_embed)
-        x_j = p[:, :, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
+        x = p[:, :, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
         
-        # W_q = torch.diag_embed(self.W_q_diag_values).unsqueeze(0)
-        # W_k = torch.diag_embed(self.W_k_diag_values).unsqueeze(0)
-        
-        # x_i = x_i @ W_k
-        # x_j = x_j @ W_q
-        x_i = x_i @ self.W_k
-        x_j = x_j @ self.W_q
+        x_i = x @ self.W_k
+        x_j = x @ self.W_q
         
         if self.kernel_function == 'linear':
-            K = x_j @ x_i.transpose(-2, -1) # shape (B, n_head, S + 1, S)
+            K = x_j @ x_i.transpose(-2, -1)
         elif self.kernel_function == 'softmax':
-            K = F.softmax(x_j @ x_i.transpose(-2, -1), dim=-1) # shape (B, n_head, S + 1, S)
+            K = F.softmax(x_j @ x_i.transpose(-2, -1), dim=-1)
         elif self.kernel_function == 'rbf':
-            x_i_sq = x_i.pow(2).sum(dim=-1, keepdim=True)
-            x_j_sq = x_j.pow(2).sum(dim=-1, keepdim=True)
-            dist_sq = x_j_sq.transpose(-2, -1) + x_i_sq - 2 * x_j @ x_i.transpose(-2, -1)
+            dist_sq = torch.cdist(x_j, x_i, p=2).pow(2)
             K = torch.exp(-self.gamma * dist_sq)
-            # K = K / K.sum(dim=-1, keepdim=True)
         elif self.kernel_function == 'laplacian':
             dist = torch.cdist(x_j, x_i, p=1)
             K = torch.exp(-self.gamma * dist)
-            # K = K / K.sum(dim=-1, keepdim=True)
+            
+        K = K[:, :, 1:, :]
+        # K = K / (K.sum(dim=-1).unsqueeze(-1) + 1e-8)
             
         f_k = torch.zeros_like(p) # initial state of the model
         
