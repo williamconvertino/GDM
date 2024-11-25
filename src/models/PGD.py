@@ -34,14 +34,15 @@ class PGD(nn.Module):
         
         nn.init.normal_(self.W_e.weight, std=0.02)
         nn.init.normal_(self.W_p.weight, std=0.02)
-        nn.init.normal_(self.A_LR, std=0.02)
-        nn.init.normal_(self.B_LR, std=0.02)
         # nn.init.normal_(self.W_q_diag_values, std=0.02)
         # nn.init.normal_(self.W_k_diag_values, std=0.02)
         # nn.init.normal_(self.W_v_diag_values, std=0.02)
         nn.init.normal_(self.W_k, std=0.02)
         nn.init.normal_(self.W_q, std=0.02)
         nn.init.normal_(self.W_v, std=0.02)
+        
+        nn.init.constant_(self.A_LR, 1.0)
+        nn.init.constant_(self.B_LR, 0.01)
         
         # LM Head
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
@@ -59,7 +60,7 @@ class PGD(nn.Module):
         
         N = K.size(-1)
         temp = f_k[:, :N, :] @ self.W_e.weight.transpose(-2, -1)
-        torch.clamp(temp, -10, 10)
+        temp = torch.clamp(temp, -10, 10)
         exp_f_k_W_e = torch.exp(temp) # shape (B, S + 1, vocab_size)
         E_W_c = (exp_f_k_W_e @ self.W_e.weight) / (torch.sum(exp_f_k_W_e, dim=-1).unsqueeze(-1) + 1e-8) # shape (B, S + 1, d_embed)
         
