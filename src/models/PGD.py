@@ -10,7 +10,7 @@ class PGD(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'PGD_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)'
+        self.name = f'PGD_({config.d_embed}D)_({config.n_layer}L)_({config.n_head}H)_(kernel={config.kernel_function})'
         
         # Params
         self.n_head = config.n_head
@@ -118,7 +118,6 @@ class PGD(nn.Module):
             K = torch.exp(-self.gamma * torch.norm(x_j.unsqueeze(-2) - x_i.unsqueeze(-3), dim=-1)) # shape (B, n_head, S + 1, S)
         elif self.kernel_function == 'laplacian':
             K = torch.exp(-self.gamma * torch.norm(x_j.unsqueeze(-2) - x_i.unsqueeze(-3), dim=-1, p=1))
-            
 
         f_k = torch.zeros_like(p) # initial state of the model
         
