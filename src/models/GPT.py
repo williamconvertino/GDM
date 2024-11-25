@@ -130,13 +130,12 @@ class GPT(nn.Module):
         x = self.ln_f(x)
 
         if targets is not None:
-            # if we are given some desired targets also calculate the loss
             logits = self.lm_head(x)
+            targets = targets[:, -1]
             targets = targets.contiguous()
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
         else:
-            # inference-time mini-optimization: only forward the lm_head on the very last position
-            logits = self.lm_head(x[:, [-1], :])
+            logits = self.lm_head(x)
             loss = None
 
         return logits, loss
