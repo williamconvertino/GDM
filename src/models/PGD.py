@@ -94,7 +94,7 @@ class PGD(nn.Module):
 
         W_y_i = e
     
-        x = p[:, :, :].unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
+        x = p.unsqueeze(1).repeat(1, self.n_head, 1, 1) # shape (B, n_head, S + 1, d_embed)
         
         x_i = x @ self.W_k
         x_j = x @ self.W_q
@@ -110,7 +110,8 @@ class PGD(nn.Module):
             dist = torch.cdist(x_j, x_i, p=1)
             K = torch.exp(-self.gamma * dist)
             
-        K = K[:, 1:, :, :]
+        K = K[:, :, :-1, :]
+        print(K.shape)
         
         # K = K / (K.sum(dim=-1).unsqueeze(-1) + 1e-8)
             
