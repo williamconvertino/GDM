@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-class PGD(nn.Module):
+class GDM(nn.Module):
 
     def __init__(self, config):
         super().__init__()

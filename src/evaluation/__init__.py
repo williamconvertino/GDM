@@ -1,1 +1,1 @@
-from src.evaluation.evaluate import evaluate_model_outputs
+from src.evaluation.generation_eval import evaluate_model_generation

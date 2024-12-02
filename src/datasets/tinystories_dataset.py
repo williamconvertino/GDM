@@ -20,7 +20,7 @@ class TinyStoriesDataset(IterableDataset):
   
     self.tokenizer = tokenizer
     self.context_size = context_size
-    self.stride = context_size // 2
+    self.stride = context_size // 2 # Overlap of 1/2 context size
     self.batch_size = batch_size
     self.shuffle_buffer_size = shuffle_buffer_size
     self.file_path = f'{DATASET_DIR}/{DATASET_NAME}/preprocessed/{split}.bin'
@@ -87,14 +87,14 @@ class TinyStoriesDataset(IterableDataset):
       if len(batch) == self.batch_size:
         batch_tensor = torch.stack(batch)
         batch = []
-        yield {'input_ids': batch_tensor.long()}
+        yield batch_tensor.long()
     
     while len(buffer) > 0:
       batch.append(torch.tensor(buffer.pop(random.randint(0, len(buffer) - 1))))
       if len(batch) == self.batch_size:
         batch_tensor = torch.stack(batch)
         batch = []
-        yield {'input_ids': batch_tensor.long()}
+        yield batch_tensor.long()
         
     if len(batch) > 0:
-      yield {'input_ids': torch.stack(batch).long()}
+      yield torch.stack(batch).long()

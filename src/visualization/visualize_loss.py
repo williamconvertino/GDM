@@ -2,10 +2,10 @@ import os
 import json
 from matplotlib import pyplot as plt
 
-RESULTS_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../results')
-FIGURES_BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../figures')
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../results')
+FIGURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../figures')
 
-def visualize_loss(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel="Loss"):
+def visualize_loss(*args, num_epochs=None, num_epoch_steps=None, title="Losses", xlabel="Step", ylabel="Loss"):
   
   colors = ['c', 'r', 'g', 'm', 'y', 'k']
   
@@ -18,28 +18,29 @@ def visualize_loss(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel
   
   for i, item in enumerate(args):
     if len(item) == 3:
-      data, label, color = item
+      losses, label, color = item
     else:
-      data, label = item
+      losses, label = item
       color = colors[i]
     
-    losses = data['losses']
-    data_epochs = data['num_epochs']
-    epoch_len = len(losses) // (data_epochs + 1)
     if num_epochs is not None:
-      losses = losses[:num_epochs * epoch_len]
-    
+      losses = [loss for loss in losses if loss[0] <= num_epochs * num_epoch_steps]
+      
     x, y = zip(*losses)
     plt.plot(x, y, label=label, color=color)
+  
+  if num_epoch_steps is not None:
+    if num_epochs is None:
+      num_epochs = max([losses[-1][0] for losses, _, _ in args])
     
-    for i in range(epoch_len, len(losses), epoch_len):
+    for i in range(0, num_epochs * num_epoch_steps, num_epoch_steps):
       x = losses[i][0]
       plt.axvline(x=x, color='gray', linestyle='--', linewidth=0.5)
     
   plt.legend()
   save_title = title.lower().replace(" ", "_")
-  os.makedirs(FIGURES_BASE_DIR, exist_ok=True)
-  plt.savefig(f'{FIGURES_BASE_DIR}/{save_title}.png')
+  os.makedirs(FIGURES_DIR, exist_ok=True)
+  plt.savefig(f'{FIGURES_DIR}/{save_title}.png')
   plt.show()
 
 def visualize_loss_from_files(*args, num_epochs=None, title="Losses", xlabel="Step", ylabel="Loss", xlim=None, ylim=None):
@@ -52,7 +53,7 @@ def visualize_loss_from_files(*args, num_epochs=None, title="Losses", xlabel="St
     else:
       file_name, label = item
       
-    with open(f'{RESULTS_BASE_DIR}/{file_name}.json', 'r') as f:
+    with open(f'{RESULTS_DIR}/{file_name}.json', 'r') as f:
       data = json.load(f)
     
     if len(item) == 3:
