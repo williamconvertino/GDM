@@ -138,7 +138,7 @@ class GPT(nn.Module):
         
         
         # LM Head
-        self.ln_out = nn.LayerNorm(config.d_embed, bias=config.bias)
+        self.ln_out = nn.LayerNorm(config.d_embed, bias=False)
         self.lm_head = nn.Linear(config.d_embed, config.vocab_size, bias=False)
         self.W_e.weight = self.lm_head.weight # Weight tying
 
