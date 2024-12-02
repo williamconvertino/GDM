@@ -160,7 +160,7 @@ class GPT(nn.Module):
         B, S = x.size()
 
         # Embeddings
-        e = self.W_e(e)
+        e = self.W_e(x)
         p = self.W_p(torch.arange(0, S, dtype=torch.long, device=device)).unsqueeze(0)
         e = self.drop_e(e)
         p = self.drop_p(p)
