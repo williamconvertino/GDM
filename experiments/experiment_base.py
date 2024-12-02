@@ -27,36 +27,52 @@ from src.tokenizers import TinyStoriesTokenizer
 DEFAULT_VOCAB_SIZE = 10002
   
 GPT_CONFIG = Config(
+  
+  model_type='GPT',
+  
+  context_size=256,
+  vocab_size=DEFAULT_VOCAB_SIZE,
+  
   d_embed=512,
   n_layer=1,
   n_head=8,
-  context_size=256,
-  vocab_size=DEFAULT_VOCAB_SIZE,
-  use_ff=True,
-  attn_kernel_fn='softmax',
+  
   dropout=0.1,
-  next_target_only=False,
-  use_ppe_attn=False
+  
+  attn_kernel_fn='softmax',
+  
+  use_ff=True,
+  use_ppe=False,
+  use_nto=False
 )
 
 GDM_CONFIG = Config(
+  
+  model_type='GDM',
+  
+  context_size=256,
+  vocab_size=DEFAULT_VOCAB_SIZE,
+  
   d_embed=512,
   n_layer=1,
   n_head=8,
-  context_size=256,
-  vocab_size=DEFAULT_VOCAB_SIZE,
-  use_ff=False,
+  
+  dropout=0.1,
+  
   attn_kernel_fn='softmax',
-  next_target_only=False
+  
+  use_ff=True,
+  use_ppe=False,
+  use_nto=False
 )
   
-def train_model_with_config(config, model_type, seed=0):
+def run_experiment(config, seed=0):
   
   torch.manual_seed(seed)
   
-  if model_type == "GPT":
+  if config.model_type == "GPT":
     model = GPT(config)
-  elif model_type == "GDM":
+  elif config.model_type == "GDM":
     model = GDM(config)
   else:
     raise ValueError("Invalid model type")
@@ -66,9 +82,3 @@ def train_model_with_config(config, model_type, seed=0):
   val_dataset = TinyStoriesDataset(tokenizer, 'val', context_size=config.context_size)
   
   train_model(model, train_dataset, val_dataset)
-  
-def train_GPT(config, seed=0):
-  train_model_with_config(config, "GPT", seed)
-  
-def train_GDM(config, seed=0):
-  train_model_with_config(config, "GDM", seed)

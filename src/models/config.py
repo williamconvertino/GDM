@@ -3,6 +3,9 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
+    
+    model_type: str # 'GPT' or 'GDM'
+    
     context_size: int
     vocab_size: int
     
@@ -12,11 +15,12 @@ class Config:
     
     dropout: float = 0.1
     
-    kernel_function: str = 'softmax'
+    attn_kernel_fn: str = 'softmax'
     use_ff: bool = True
     use_ppe: bool = False
     use_nto: bool = False # Only predict the N+1 token
     
     def __post_init__(self):
-        assert self.kernel_function in ['softmax', 'linear', 'rbf', 'laplacian']
+        assert self.model_type in ['GPT', 'GDM']
+        assert self.attn_kernel_fn in ['softmax', 'linear', 'rbf', 'laplacian']
         self.d_ff = self.d_embed * 4

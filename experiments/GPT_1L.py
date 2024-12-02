@@ -1,5 +1,5 @@
 import experiment_base
-from experiment_base import train_GPT, train_GDM, GPT_CONFIG, GDM_CONFIG
+from experiment_base import GPT_CONFIG, GDM_CONFIG, run_experiment
 
 config = GPT_CONFIG
-train_GPT(config)
+run_experiment(config)

@@ -118,7 +118,7 @@ class GPT(nn.Module):
         super().__init__()
         
         self.config = config
-        self.name = f'GPT_{config.d_embed}D_{config.n_layer}L_{config.n_head}H_K={config.kernel_function}'
+        self.name = f'GPT_{config.d_embed}D_{config.n_layer}L_{config.n_head}H_K={config.attn_kernel_fn}'
         
         if config.use_ff:
             self.name += '_FF'
