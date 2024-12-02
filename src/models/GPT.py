@@ -51,13 +51,13 @@ class Attention(nn.Module):
             V = torch.matmul(x, self.W_v)
         
         # Compute attention scores
-        if self.attn_kernel_fn == 'softmax':
+        if self.config.attn_kernel_fn == 'softmax':
             attn_scores = F.softmax(torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.config.d_embed), dim=-1)
-        elif self.attn_kernel_fn == 'linear':
+        elif self.config.attn_kernel_fn == 'linear':
             attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.config.d_embed)
-        elif self.attn_kernel_fn == 'rbf':
+        elif self.config.attn_kernel_fn == 'rbf':
             attn_scores = torch.cdist(Q, K, p=2).pow(2).mul(-self.gamma).exp()
-        elif self.attn_kernel_fn == 'laplacian':
+        elif self.config.attn_kernel_fn == 'laplacian':
             attn_scores = torch.cdist(Q, K, p=1).mul(-self.gamma).exp()
         
         # Add causal mask (if not next_target_only)
