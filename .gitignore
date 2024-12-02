@@ -1,7 +1,6 @@
 # Data folders
 data/
-models/
-!src/models
+checkpoints/
 results/
 figures/
 
