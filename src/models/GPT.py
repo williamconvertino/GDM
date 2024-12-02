@@ -61,7 +61,7 @@ class Attention(nn.Module):
             attn_scores = torch.cdist(Q, K, p=1).mul(-self.gamma).exp()
         
         # Add causal mask (if not next_target_only)
-        if not self.config.nto:
+        if not self.config.use_nto:
             mask = torch.tril(torch.ones(S, S, device=device))
             mask = mask.bool()
             attn_bias = torch.zeros(S, S, device=device)
